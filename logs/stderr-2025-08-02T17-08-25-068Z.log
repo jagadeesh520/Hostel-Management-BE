@@ -1,0 +1,1 @@
+[ WARN:0@3.493] global loadsave.cpp:275 cv::findDecoder imread_('C:\Project\College_Management\hostel-app-be\scripts\..\uploads\faces\uploads\faces\1754154503634.jpg'): can't open/read file: check file path/integrity

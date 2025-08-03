@@ -1,0 +1,8 @@
+[] Image path received: uploads\faces\1754188626786.jpg
+[] Initializing face model...
+[] Face model ready
+[] Detected 1 face(s)
+[] FAISS distances: [0.49902287125587463, 0.6539583802223206, 0.6719592809677124]
+[] Closest match index: 0
+[] Match found: 520 (distance: 0.4990)
+520

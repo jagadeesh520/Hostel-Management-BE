@@ -1,0 +1,10 @@
+[DEBUG] Input image path: uploads\faces\1754154017127.jpg
+[INFO] Loading FAISS index from: C:\Project\College_Management\hostel-app-be\scripts\faiss_data\face_index.faiss
+[INFO] Loading student IDs from: C:\Project\College_Management\hostel-app-be\scripts\faiss_data\rollnos.pkl
+[DEBUG] Image file size: 5023.88 KB
+[DEBUG] Image read successfully: shape = (6528, 4896, 3)
+[DEBUG] Number of faces detected: 1
+[DEBUG] Embedding vector shape: (128,)
+[DEBUG] Searching FAISS index...
+[ERROR] Exception occurred: 
+Unknown

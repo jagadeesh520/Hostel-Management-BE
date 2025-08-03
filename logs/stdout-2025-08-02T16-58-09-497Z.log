@@ -1,0 +1,13 @@
+[INFO] Loading FAISS index from: C:\Project\College_Management\hostel-app-be\scripts\faiss_data\face_index.faiss
+[INFO] Loading student IDs from: C:\Project\College_Management\hostel-app-be\scripts\faiss_data\rollnos.pkl
+[DEBUG] Input image path: uploads\faces\1754153887632.jpg
+[DEBUG] Image file size: 5590.88 KB
+[DEBUG] Loading InsightFace model...
+[DEBUG] Image read successfully: shape = (6528, 4896, 3)
+[DEBUG] Number of faces detected: 1
+[DEBUG] Embedding vector shape: (512,)
+[DEBUG] Searching FAISS index...
+[DEBUG] Distances: [0.4999879  0.58073306 0.61431026]
+[DEBUG] Top FAISS indices: [0 4 3]
+[DEBUG] Failed to map FAISS indices to roll numbers: 'charmap' codec can't encode character '\U0001f9fe' in position 1: character maps to <undefined>
+Unknown

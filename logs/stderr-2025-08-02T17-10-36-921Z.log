@@ -1,0 +1,4 @@
+Traceback (most recent call last):
+  File "C:\Project\College_Management\hostel-app-be\scripts\recognize_from_upload.py", line 20, in <module>
+    with open(IDS_PKL_PATH, 'rb') as f:
+FileNotFoundError: [Errno 2] No such file or directory: 'C:\\Project\\College_Management\\hostel-app-be\\scripts\\faiss_data\\student_ids.pkl'

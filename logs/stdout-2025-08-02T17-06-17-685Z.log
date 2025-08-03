@@ -1,0 +1,7 @@
+[INFO] Loading FAISS index from: C:\Project\College_Management\hostel-app-be\scripts\faiss_data\face_index.faiss
+[INFO] Loading student IDs from: C:\Project\College_Management\hostel-app-be\scripts\faiss_data\rollnos.pkl
+[DEBUG] Input image path: C:\Project\College_Management\hostel-app-be\uploads\faces\1754154376512.jpg
+[DEBUG] Image file size: 4938.08 KB
+[DEBUG] Number of faces detected: 1
+[DEBUG] Embedding vector shape: (128,)
+[ERROR] Dimension mismatch! Embedding: 128, FAISS index: 512

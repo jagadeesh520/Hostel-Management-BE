@@ -1,0 +1,6 @@
+Traceback (most recent call last):
+  File "C:\Project\College_Management\hostel-app-be\scripts\recognize_from_upload.py", line 65, in <module>
+    distances, indices = index.search(np.expand_dims(vector, axis=0), k=3)
+  File "C:\Users\jagad\AppData\Roaming\Python\Python39\site-packages\faiss\class_wrappers.py", line 329, in replacement_search
+    assert d == self.d
+AssertionError

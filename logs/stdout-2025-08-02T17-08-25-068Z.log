@@ -1,0 +1,4 @@
+[INFO] Loading FAISS index from: C:\Project\College_Management\hostel-app-be\scripts\faiss_data\face_index.faiss
+[INFO] Loading student IDs from: C:\Project\College_Management\hostel-app-be\scripts\faiss_data\rollnos.pkl
+[DEBUG] Input image path: C:\Project\College_Management\hostel-app-be\scripts\..\uploads\faces\uploads\faces\1754154503634.jpg
+[ERROR] Image not found or unreadable.
