@@ -35,6 +35,9 @@ router.post("/upload", auth, roleCheck(["admin"]), async (req, res) => {
       year: s["Year"],
       roomNo: s["Room No"],
       blockName: s["Block Name"],
+      address: s["Address"] || "",       // New field
+      studentPhone: s["Student Phone"] || "", // New field
+      parentPhone: s["Parent Phone"] || "",   // New field
     }));
 
     await Student.insertMany(mappedStudents);

@@ -5,6 +5,7 @@ const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
 const User = require("../models/User"); // Create this if not already
 const Student = require("../models/Student");
+const Attendance = require("../models/Attendance")
 const { auth,roleCheck } = require("../middleware/auth");
 
 // POST /api/student/login
@@ -43,7 +44,7 @@ router.post("/login",async (req, res) => {
 });
 
 router.get('/roll/:rollNo', async (req, res) => {
-    console.log("Welcome")
+    //console.log("Welcome")
   try {
     const { rollNo } = req.params;
 
@@ -58,6 +59,24 @@ router.get('/roll/:rollNo', async (req, res) => {
   } catch (err) {
     console.error('Error fetching student by rollNo:', err.message);
     return res.status(500).json({ message: 'Server error' });
+  }
+});
+
+router.get("/check/:rollNo", async (req, res) => {
+  console.log("check-rollNo",req)
+  const { rollNo } = req.params;
+  const { date } = req.query;
+
+  if (!rollNo || !date) {
+    return res.status(400).json({ error: "Missing rollNo or date" });
+  }
+
+  try {
+    const exists = await Attendance.exists({ rollNo, date });
+    res.json({ exists: !!exists });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
   }
 });
 

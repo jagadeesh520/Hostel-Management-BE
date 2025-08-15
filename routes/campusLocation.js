@@ -32,4 +32,16 @@ router.post("/", async (req, res) => {
   }
 });
 
+router.get("/:collegeName", async (req, res) => {
+  console.log("✅ GET campusLocation hit:", req.params.collegeName);
+  const location = await CampusLocation.findOne({ collegeName: req.params.collegeName });
+  if (!location) {
+    console.log("❌ Not found in DB");
+    return res.status(404).json({ message: "Campus location not found" });
+  }
+  res.json({ data: location });
+});
+
+
+
 module.exports = router;
