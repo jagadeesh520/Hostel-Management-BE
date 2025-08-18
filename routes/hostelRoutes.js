@@ -2,6 +2,7 @@
 const express = require("express");
 const router = express.Router();
 const Hostel = require("../models/Hostel");
+const Attendance = require("../models/Attendance");
 const { auth, roleCheck } = require("../middleware/auth");
 
 // Only Admin can save hostel data
@@ -110,6 +111,41 @@ router.put("/update", auth, roleCheck(["admin"]), async (req, res) => {
   }
 });
 
+// GET /api/admin/attendance?studentId=xxx&startDate=yyyy-mm-dd&endDate=yyyy-mm-dd
+router.get("/attendanceList", auth, roleCheck(["admin"]), async (req, res) => {
+  try {
+    const { studentId, startDate, endDate } = req.query;
+
+    const filter = {};
+    if (studentId) filter.studentId = studentId;
+    if (startDate || endDate) filter.date = {};
+    if (startDate) filter.date.$gte = startDate;
+    if (endDate) filter.date.$lte = endDate;
+
+    // Use .lean() to get plain JS objects
+    const attendance = await Attendance.find(filter).sort({ date: 1 }).lean();
+
+    // Group by student
+    const grouped = {};
+    attendance.forEach((record) => {
+      const sid = record.studentId.toString();
+      if (!grouped[sid]) grouped[sid] = [];
+      grouped[sid].push({
+        studentName: record.studentName, // include name
+        date: record.date,
+        status: record.status,
+        roomNo: record.roomNo,
+        blockName: record.blockName,
+        rollNo: record.rollNo,
+      });
+    });
+
+    res.json({ success: true, data: grouped });
+  } catch (err) {
+    console.error("Fetch Attendance Error:", err);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
 
 
 

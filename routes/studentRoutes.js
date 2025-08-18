@@ -1,9 +1,13 @@
 const express = require("express");
 const router = express.Router();
+const fs = require("fs"); // <-- Add this
+const csv = require("csv-parser"); // if using csv-parser
+const bcrypt = require("bcryptjs");
 const Student = require("../models/Student");
 const upload = require("../middleware/upload");
 const { auth, roleCheck } = require("../middleware/auth");
 const uploadFaceImages = require("../middleware/uploadFaceImages");
+const User = require("../models/User");
 
 // ✅ GET all students
 router.get("/", auth, roleCheck(["admin"]), async (req, res) => {
@@ -133,5 +137,45 @@ router.put(
     }
   }
 );
+
+
+router.post("/bulk-upload-students", upload.single("file"), async (req, res) => {
+  console.log("welcome",req)
+  if (!req.file) return res.status(400).json({ message: "CSV file is required" });
+
+  const fileRows = []; // JS array, no type annotations
+
+  fs.createReadStream(req.file.path)
+    .pipe(csv())
+    .on("data", (row) => fileRows.push(row))
+    .on("end", async () => {
+      try {
+        // Map rows to User objects with hashed passwords
+        const users = await Promise.all(
+          fileRows.map(async (row) => ({
+            name: row.name,
+            email: row.email,
+            rollNo: row.rollNo,
+            password: await bcrypt.hash(row.password, 10),
+            role: "Student",
+          }))
+        );
+
+        await User.insertMany(users);
+
+        // Remove temp CSV file
+        fs.unlinkSync(req.file.path);
+
+        res.status(200).json({ message: "Bulk upload successful", count: users.length });
+      } catch (err) {
+        console.error("Bulk upload error:", err);
+        res.status(500).json({ error: err.message });
+      }
+    })
+    .on("error", (err) => {
+      console.error("CSV parse error:", err);
+      res.status(500).json({ error: "Failed to parse CSV" });
+    });
+});
 
 module.exports = router;

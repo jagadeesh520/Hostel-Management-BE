@@ -80,5 +80,35 @@ router.get("/check/:rollNo", async (req, res) => {
   }
 });
 
+router.post("/change-password", async (req, res) => {
+  try {
+    console.log("Request body:", req.body);
+
+    const { rollNo, oldPassword, newPassword } = req.body;
+
+    if (!rollNo || !oldPassword || !newPassword) {
+      return res.status(400).json({ error: "Please provide all required fields" });
+    }
+
+    // Find user by rollNo
+    const user = await User.findOne({ rollNo });
+    if (!user) return res.status(404).json({ error: "User not found" });
+
+    // Compare old password
+    const isMatch = await bcrypt.compare(oldPassword, user.password);
+    if (!isMatch) return res.status(401).json({ error: "Incorrect current password" });
+
+    // Hash new password
+    user.password = await bcrypt.hash(newPassword, 10);
+    await user.save();
+
+    console.log("Password updated for:", user.rollNo);
+    res.json({ message: "Password updated successfully" });
+  } catch (err) {
+    console.error("Password update error:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 
 module.exports = router;

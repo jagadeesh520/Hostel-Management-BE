@@ -190,7 +190,6 @@ router.post("/location/update", async (req, res) => {
       { new: true }
     );
 
-    console.log("Welcome update", updated);
     if (!updated) {
       // Create new if not exists
       await Attendance.create({
