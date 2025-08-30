@@ -3,6 +3,7 @@ const express = require("express");
 const router = express.Router();
 const Hostel = require("../models/Hostel");
 const Attendance = require("../models/Attendance");
+const Student = require("../models/Student");
 const { auth, roleCheck } = require("../middleware/auth");
 
 // Only Admin can save hostel data
@@ -119,24 +120,42 @@ router.get("/attendanceList", auth, roleCheck(["admin"]), async (req, res) => {
     const filter = {};
     if (studentId) filter.studentId = studentId;
     if (startDate || endDate) filter.date = {};
-    if (startDate) filter.date.$gte = startDate;
-    if (endDate) filter.date.$lte = endDate;
+    if (startDate) filter.date.$gte = new Date(startDate);
+    if (endDate) filter.date.$lte = new Date(endDate);
 
-    // Use .lean() to get plain JS objects
     const attendance = await Attendance.find(filter).sort({ date: 1 }).lean();
 
-    // Group by student
+    // Get all unique student IDs in the attendance
+    const studentIds = [...new Set(attendance.map(a => a.studentId.toString()))];
+
+    // Fetch student info in bulk
+    const students = await Student.find({ _id: { $in: studentIds } })
+      .select("studentPhone parentPhone studentName") // fetch only needed fields
+      .lean();
+
+    const studentMap = {};
+    students.forEach(s => {
+      studentMap[s._id.toString()] = {
+        studentPhone: s.studentPhone,
+        parentPhone: s.parentPhone,
+        studentName: s.studentName
+      };
+    });
+
+    // Group attendance by student
     const grouped = {};
-    attendance.forEach((record) => {
+    attendance.forEach(record => {
       const sid = record.studentId.toString();
       if (!grouped[sid]) grouped[sid] = [];
       grouped[sid].push({
-        studentName: record.studentName, // include name
+        studentName: studentMap[sid]?.studentName || record.studentName,
+        studentPhone: studentMap[sid]?.studentPhone || null,
+        parentPhone: studentMap[sid]?.parentPhone || null,
         date: record.date,
         status: record.status,
         roomNo: record.roomNo,
         blockName: record.blockName,
-        rollNo: record.rollNo,
+        rollNo: record.rollNo
       });
     });
 

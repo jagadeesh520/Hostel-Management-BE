@@ -9,52 +9,104 @@ const path = require("path");
 const { spawn } = require("child_process");
 const fs = require("fs");
 
+// routes/attendance.js (or wherever this route lives)
+// routes/attendance.js
 router.post("/mark", auth, roleCheck(["Warden"]), async (req, res) => {
-  const { studentId, status, date, studentName, roomNo, rollNo, blockName } =
-    req.body;
-
   try {
-    const attendanceDate = new Date(date);
-    const attendanceDateString = attendanceDate.toISOString().split("T")[0];
-    const nextDay = new Date(date);
-    nextDay.setHours(23, 59, 59, 999);
-
-    // 🔄 Check if already marked
-    const existingRecord = await Attendance.findOne({
+    let {
       studentId,
-      date: attendanceDateString,
-    });
-
-    if (existingRecord) {
-      // ✏️ Update the existing record
-      existingRecord.status = status;
-      existingRecord.studentName = studentName;
-      existingRecord.roomNo = roomNo;
-      existingRecord.rollNo = rollNo;
-      existingRecord.blockName = blockName;
-
-      await existingRecord.save();
-      return res.json({ message: "Attendance updated successfully." });
-    }
-
-    // ✅ Insert new record with correct date
-    const attendance = new Attendance({
-      studentId,
-      status,
-      date: attendanceDate, // ✅ THIS LINE FIXES THE BUG
+      status,              // "Present" | "Absent"
+      date,                // any ISO-like date input
       studentName,
       roomNo,
       rollNo,
       blockName,
-    });
+      force                // optional: boolean or "1"/"true"
+    } = req.body;
 
-    await attendance.save();
-    res.json({ message: "Attendance marked successfully." });
+    // ---- 1) Validate inputs
+    if (!studentId || !status || !date) {
+      return res.status(400).json({ message: "studentId, status, and date are required." });
+    }
+    status = String(status).trim();
+    if (!["Present", "Absent"].includes(status)) {
+      return res.status(400).json({ message: "status must be 'Present' or 'Absent'." });
+    }
+    const forceBool =
+      force === true || force === "true" || force === "1" || force === 1;
+
+    // ---- 2) Normalize date to "YYYY-MM-DD" (UTC)
+    const d = new Date(date);
+    if (isNaN(d.getTime())) {
+      return res.status(400).json({ message: "Invalid date." });
+    }
+    d.setUTCHours(0, 0, 0, 0);
+    const dateStr = d.toISOString().slice(0, 10); // "YYYY-MM-DD"
+
+    // ---- 3) Build guarded filter (protect approved-leave absences)
+    const filter = { studentId, date: dateStr };
+    if (!forceBool) {
+      filter.isApprovedLeave = { $ne: true };
+    }
+
+    // ---- 4) Build update
+    const baseSets = {
+      studentName,
+      roomNo,
+      rollNo,
+      blockName,
+      status,
+      timestamp: new Date(),
+    };
+
+    // Since this is manual mark, ensure we clear any old leave metadata
+    const unsetIfNotLeave = {
+      leaveId: "",
+      leaveType: "",
+      leaveReason: "",
+      isApprovedLeave: "",
+    };
+
+    // ---- 5) Upsert with guard
+    const result = await Attendance.updateOne(
+      filter,
+      {
+        $setOnInsert: { studentId, date: dateStr },
+        $set: baseSets,
+        $unset: unsetIfNotLeave,
+      },
+      { upsert: true, runValidators: true }
+    );
+
+    // If protected by approved-leave flag and not forced, tell client
+    if (!forceBool && result.matchedCount === 0 && result.upsertedCount !== 1 && result.modifiedCount === 0) {
+      return res.status(409).json({
+        message: "This day is an approved-leave absence and cannot be changed.",
+        hint: "Send { force: true } to override if you really need to.",
+      });
+    }
+
+    // ---- 6) Return the fresh document for convenience
+    const doc = await Attendance.findOne({ studentId, date: dateStr }).lean();
+
+    return res.json({
+      message:
+        result.upsertedCount ? "Attendance created." :
+        result.modifiedCount ? "Attendance updated." :
+        "No change required.",
+      attendance: doc,
+    });
   } catch (err) {
-    console.error("❌ Error saving/updating attendance:", err.message);
-    res.status(500).json({ message: "Server error" });
+    // Handle duplicate key races cleanly
+    if (err?.code === 11000) {
+      return res.status(409).json({ message: "Duplicate attendance for this date exists. Try updating instead." });
+    }
+    console.error("❌ Error saving/updating attendance:", err);
+    return res.status(500).json({ message: "Server error" });
   }
 });
+
+
 
 // GET attendance for a specific date
 router.get("/list", auth, roleCheck(["Warden"]), async (req, res) => {
@@ -223,33 +275,41 @@ router.post("/recognize", upload.single("faceImage"), async (req, res) => {
     }
 
     const pythonPath = "C:\\Program Files\\Python39\\python.exe";
-    const scriptPath = path.join(__dirname, "../scripts/recognize_from_upload.py");
+    const scriptPath = path.join(
+      __dirname,
+      "../scripts/recognize_from_upload.py"
+    );
 
     const pythonProcess = spawn(pythonPath, [scriptPath, imagePath]);
 
     let resultData = "";
     let errorData = "";
 
-    const logTime = new Date().toISOString().replace(/[:.]/g, "-");
-    const logDir = path.join(__dirname, "../logs");
-    if (!fs.existsSync(logDir)) fs.mkdirSync(logDir);
+    // const logTime = new Date().toISOString().replace(/[:.]/g, "-");
+    // const logDir = path.join(__dirname, "../logs");
+    // if (!fs.existsSync(logDir)) fs.mkdirSync(logDir);
 
-    const stdoutLog = path.join(logDir, `stdout-${logTime}.log`);
-    const stderrLog = path.join(logDir, `stderr-${logTime}.log`);
+    // const stdoutLog = path.join(logDir, `stdout-${logTime}.log`);
+    // const stderrLog = path.join(logDir, `stderr-${logTime}.log`);
 
     pythonProcess.stdout.on("data", (data) => {
       const output = data.toString();
       resultData += output;
-      fs.appendFileSync(stdoutLog, output);
+      // fs.appendFileSync(stdoutLog, output);
     });
 
     pythonProcess.stderr.on("data", (data) => {
       const error = data.toString();
       errorData += error;
-      fs.appendFileSync(stderrLog, error);
+      // fs.appendFileSync(stderrLog, error);
     });
 
     pythonProcess.on("close", async (code) => {
+      fs.unlink(imagePath, (err) => {
+        if (err) console.error("❌ Error deleting temp image:", err);
+        else console.log("🗑️ Deleted temp image:", imagePath);
+      });
+
       if (code !== 0) {
         return res.status(500).json({
           message: "Recognition failed.",
@@ -260,7 +320,23 @@ router.post("/recognize", upload.single("faceImage"), async (req, res) => {
       const lines = resultData.trim().split("\n");
       const recognizedId = lines[lines.length - 1].trim();
 
-      if (!recognizedId || recognizedId === "Unknown" || recognizedId === "[]") {
+      const expectedRollNo = req.body.rollNo;
+
+      if (recognizedId !== expectedRollNo) {
+        console.warn(
+          `[⚠️] Face mismatch: scanned ${recognizedId}, expected ${expectedRollNo}`
+        );
+        return res.status(403).json({
+          message: `Face mismatch: scanned ${recognizedId}, expected ${expectedRollNo}`,
+          student: null,
+        });
+      }
+
+      if (
+        !recognizedId ||
+        recognizedId === "Unknown" ||
+        recognizedId === "[]"
+      ) {
         return res.status(404).json({ message: "Student not recognized." });
       }
 
@@ -270,7 +346,7 @@ router.post("/recognize", upload.single("faceImage"), async (req, res) => {
       }
 
       const now = new Date();
-      const dateOnly = now.toISOString().split("T")[0]; // Format: "YYYY-MM-DD"
+      const dateOnly = now.toISOString().split("T")[0];
 
       let existingAttendance = await Attendance.findOne({
         studentId: student._id,
@@ -313,6 +389,9 @@ router.post("/recognize", upload.single("faceImage"), async (req, res) => {
     });
   } catch (err) {
     console.error("❌ Error in /recognize route:", err);
+    if (req.file?.path && fs.existsSync(req.file.path)) {
+      fs.unlink(req.file.path, () => {});
+    }
     return res.status(500).json({ message: "Internal server error" });
   }
 });

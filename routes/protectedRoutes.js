@@ -10,17 +10,17 @@ console.log("roleCheck:", typeof roleCheck);        // Should log: "function"
 console.log("roleCheck(['Admin']):", typeof roleCheck(["Admin"]));  // Should log: "function"
 
 // Admin only
-router.get("/admin-dashboard", auth, roleCheck(["Admin"]), (req, res) => {
+router.get("/admin-dashboard", auth, roleCheck(["admin"]), (req, res) => {
   res.send("Welcome Admin");
 });
 
 // Warden only
-router.get("/warden-dashboard", auth, roleCheck(["Warden"]), (req, res) => {
+router.get("/warden-dashboard", auth, roleCheck(["warden"]), (req, res) => {
   res.send("Welcome Warden");
 });
 
 // Student only
-router.get("/student-dashboard", auth, roleCheck(["Student"]), (req, res) => {
+router.get("/student-dashboard", auth, roleCheck(["student"]), (req, res) => {
   res.send("Welcome Student");
 });
 

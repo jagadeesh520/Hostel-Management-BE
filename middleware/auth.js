@@ -3,16 +3,29 @@ const jwt = require("jsonwebtoken");
 const auth = (req, res, next) => {
   const authHeader = req.header("Authorization");
 
-  // Log the full header for debugging
   console.log("🔐 Auth middleware triggered");
   console.log("👉 Auth header:", authHeader);
 
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+  if (!authHeader || !authHeader.startsWith("Bearer")) {
     return res.status(401).json({ message: "Authorization header missing or malformed" });
   }
 
-  const token = authHeader.split(" ")[1];
-  console.log("👉 token:", token);
+  // Extract token and remove any surrounding quotes
+  let token = authHeader.split(" ")[1];
+  console.log("👉 Raw token:", token);
+  
+  // Remove surrounding quotes if present
+  if (token.startsWith('"') && token.endsWith('"')) {
+    token = token.slice(1, -1);
+    console.log("👉 Unquoted token:", token);
+  }
+  
+  // Check if JWT_SECRET is set
+  if (!process.env.JWT_SECRET) {
+    console.error("❌ JWT_SECRET is not set in environment variables");
+    return res.status(500).json({ message: "Server configuration error" });
+  }
+  
   console.log("JWT_SECRET in middleware:", process.env.JWT_SECRET);
 
   try {
@@ -34,9 +47,8 @@ const roleCheck = (roles) => (req, res, next) => {
   next();
 };
 
-// ✅ Move logs here for confirmation
 console.log("✅ auth.js loaded");
-console.log("typeof auth:", typeof auth);         // should be function
-console.log("typeof roleCheck:", typeof roleCheck); // should be function
+console.log("typeof auth:", typeof auth);
+console.log("typeof roleCheck:", typeof roleCheck);
 
 module.exports = { auth, roleCheck };

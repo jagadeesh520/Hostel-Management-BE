@@ -12,6 +12,8 @@ app.use(express.json());
 const cors = require("cors");
 app.use(cors());
 
+console.log('Environment variables loaded:');
+console.log('JWT_SECRET:', process.env.JWT_SECRET ? 'Set' : 'Not set');
 
 app.use("/api/auth", require("./routes/authRoutes"));
 //app.use("/api/dashboard", require("./routes/protectedRoutes")); 
@@ -39,10 +41,16 @@ app.use("/api/timesheetRoutes", require("./routes/timesheetRoutes"));
 
 app.use("/api/issueTicket", require("./routes/issueTicket"));
 
+app.use("/api/blog", require("./routes/blog"));
+
+app.use("/api/menu", require("./routes/menu"));
+
 
 app.use("/api/adminRates", require("./routes/adminRates"));
 app.use("/api/campusLocation", require("./routes/campusLocation"));
 app.use("/api/upi", require("./routes/upiRoutes"));
+
+app.use('/api/leave', require('./routes/leave'));
 
 
 app.listen(process.env.PORT, () => {

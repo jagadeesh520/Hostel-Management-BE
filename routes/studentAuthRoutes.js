@@ -49,7 +49,6 @@ router.get('/roll/:rollNo', async (req, res) => {
     const { rollNo } = req.params;
 
     const student = await Student.findOne({ rollNo }); // ✅ this will now match correctly
-    console.log("Fetched student:", student);
 
     if (!student) {
       return res.status(404).json({ message: 'Student not found' });
@@ -63,22 +62,35 @@ router.get('/roll/:rollNo', async (req, res) => {
 });
 
 router.get("/check/:rollNo", async (req, res) => {
-  console.log("check-rollNo",req)
-  const { rollNo } = req.params;
-  const { date } = req.query;
+  const rollNo = req.params.rollNo?.trim();
+  const dateStr = req.query.date?.trim();
 
-  if (!rollNo || !date) {
+  if (!rollNo || !dateStr) {
     return res.status(400).json({ error: "Missing rollNo or date" });
   }
 
   try {
-    const exists = await Attendance.exists({ rollNo, date });
-    res.json({ exists: !!exists });
+    const record = await Attendance.findOne({ rollNo, date: dateStr });
+
+    if (!record) {
+      return res.json({ exists: false }); // no record at all
+    }
+
+    const isPresent = record.status === "Present";
+
+    return res.json({
+      exists: isPresent, // true only if marked present
+      status: record.status,
+      timestamp: record.timestamp,
+    });
   } catch (err) {
-    console.error(err);
+    console.error("Attendance check error:", err);
     res.status(500).json({ error: "Server error" });
   }
 });
+
+
+
 
 router.post("/change-password", async (req, res) => {
   try {

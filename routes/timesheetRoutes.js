@@ -5,36 +5,47 @@ const Attendance = require('../models/Attendance')
 
 // GET /api/timesheet/:rollNo
 // routes/timesheet.js
+// GET /api/timesheetRoutes/:rollNo
 router.get('/:rollNo', async (req, res) => {
   try {
     const rollNo = String(req.params.rollNo).trim();
-    console.log('Searching for rollNo:', rollNo);
 
-    const allRecords = await Attendance.find({});
-    console.log('Total records in DB:', allRecords.length);
-    allRecords.forEach(r => console.log(`${r.rollNo} | ${r.status} | ${r.date}`));
-
-    const records = allRecords.filter(r => r.rollNo === rollNo);
-    console.log('Filtered records:', records.length);
+    // Query directly by rollNo
+    const records = await Attendance.find({ rollNo })
+      .select('date status isApprovedLeave')
+      .lean();
 
     if (!records.length) {
-      return res.status(200).json({ absentDates: [], presentDates: [] });
+      return res.json({
+        absentDates: [],
+        approvedLeaveDates: [],
+        presentDates: [],
+      });
     }
 
-    const absentDates = records
-      .filter((rec) => rec.status === 'Absent')
-      .map((rec) => new Date(rec.date).toISOString().split('T')[0]);
+    const presentDates = [];
+    const absentDates = [];
+    const approvedLeaveDates = [];
 
-    const presentDates = records
-      .filter((rec) => rec.status === 'Present')
-      .map((rec) => new Date(rec.date).toISOString().split('T')[0]);
+    for (const rec of records) {
+      // date is already stored as "YYYY-MM-DD"
+      const d = rec.date;
 
-    res.json({ absentDates, presentDates });
+      if (rec.status === 'Present') {
+        presentDates.push(d);
+      } else if (rec.status === 'Absent') {
+        if (rec.isApprovedLeave) approvedLeaveDates.push(d);
+        else absentDates.push(d);
+      }
+    }
+
+    res.json({ absentDates, approvedLeaveDates, presentDates });
   } catch (err) {
     console.error('API Error:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
+
 
 
 

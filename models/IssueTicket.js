@@ -1,14 +1,36 @@
-const mongoose = require('mongoose');
+// models/IssueTicket.js
+const mongoose = require("mongoose");
+const { Schema, model } = mongoose;
 
-const IssueTicketSchema = new mongoose.Schema({
-  issueType: { type: String, required: true },
-  description: { type: String, required: true },
-  rollNo: { type: String, required: true },
-  imagePath: { type: String },
-  status: { type: String, default: 'Pending' },
-  resolutionImage: { type: String },
-  resolutionNote: { type: String },
-  resolvedAt: { type: Date },
-}, { timestamps: true }); // Adds createdAt and updatedAt automatically
+const IssueTicketSchema = new Schema(
+  {
+    issueType: String,
+    description: String,
+    rollNo: String,
+    studentName: String,
+    roomNo: String,
+    imagePath: String,
 
-module.exports = mongoose.model('IssueTicket', IssueTicketSchema);
+    // Status flow: Pending -> Assigned -> WardenFixed -> Resolved
+    status: {
+      type: String,
+      enum: ["Pending", "Assigned", "WardenFixed", "Resolved"],
+      default: "Pending",
+    },
+
+    // Assignment
+    assignedWarden: { type: Schema.Types.ObjectId, ref: "Warden" },
+    assignedAt: Date,
+
+    // Warden fix
+    wardenReply: String,
+    resolutionImage: String,   // filename for proof image (already in your docs)
+    wardenFixedAt: Date,
+
+    // Admin final resolve
+    resolvedAt: Date,
+  },
+  { timestamps: true }
+);
+
+module.exports = model("IssueTicket", IssueTicketSchema);

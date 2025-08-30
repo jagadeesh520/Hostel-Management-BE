@@ -8,9 +8,9 @@ const studentSchema = new mongoose.Schema({
   year: String,
   roomNo: String,
   blockName: String,
-  address: String,           // ✅ New field
-  studentPhone: String,      // ✅ New field
-  parentPhone: String,       // ✅ New field
+  address: String,
+  studentPhone: String,
+  parentPhone: String,
   faceImage: {
     type: String,
     default: ""
@@ -20,6 +20,14 @@ const studentSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+
+  /** 👇 NEW field: veg or non-veg */
+  type: {
+    type: String,
+    enum: ["veg", "non-veg"],  // restricts values
+    required: true,            // enforce it must be set
+  },
+
 }, { timestamps: true });
 
 module.exports = mongoose.model('Student', studentSchema);
