@@ -39,18 +39,18 @@ async function applyApprovedLeaveToAttendance(leaveDoc, studentDoc) {
           $setOnInsert: { studentId: leaveDoc.student, date: dateStr },
           $set: {
             studentName: studentDoc?.studentName,
-            roomNo:      studentDoc?.roomNo,
-            rollNo:      studentDoc?.rollNo,
-            blockName:   studentDoc?.blockName,
+            roomNo: studentDoc?.roomNo,
+            rollNo: studentDoc?.rollNo,
+            blockName: studentDoc?.blockName,
 
             // your policy: leave days count as Absent
             status: "Absent",
             isApprovedLeave: true,
 
-            leaveId:     leaveDoc._id,
-            leaveType:   leaveDoc.leaveType,
+            leaveId: leaveDoc._id,
+            leaveType: leaveDoc.leaveType,
             leaveReason: leaveDoc.reason,
-            timestamp:   new Date(),
+            timestamp: new Date(),
           },
         },
         upsert: true,
@@ -59,11 +59,12 @@ async function applyApprovedLeaveToAttendance(leaveDoc, studentDoc) {
   });
 
   if (!ops.length) return;
-  const result = await Attendance.bulkWrite(ops, { ordered: false, bypassDocumentValidation: false });
+  const result = await Attendance.bulkWrite(ops, {
+    ordered: false,
+    bypassDocumentValidation: false,
+  });
   console.log("[LEAVE→ATT] bulkWrite result:", result);
 }
-
-
 
 /** -------- studentAuthByRollNo (no JWT) -------- */
 async function studentAuthByRollNo(req, res, next) {
@@ -173,19 +174,21 @@ router.patch("/:id/cancel", studentAuthByRollNo, async (req, res) => {
 /** ========== WARDEN/ADMIN ENDPOINTS ========== */
 
 // GET /api/leave?status=&page=&limit=&student=
+// GET /api/leave?status=&page=&limit=&student=
 router.get("/", auth, roleCheck(["Warden", "Admin"]), async (req, res) => {
   try {
-    const { page = 1, limit = 10, status = "pending", student } = req.query;
+    const { page = 1, limit = 10, status, student } = req.query;
 
     const filter = {};
-    if (status) filter.status = String(status).trim();
+    if (status && status !== "all") {
+      filter.status = String(status).trim();
+    }
     if (student) filter.student = student;
 
     const skip = (Number(page) - 1) * Number(limit);
 
     const [items, total] = await Promise.all([
       Leave.find(filter)
-        // 👇 include year here
         .populate(
           "student",
           "studentName rollNo year blockName collegeName email"
@@ -203,6 +206,7 @@ router.get("/", auth, roleCheck(["Warden", "Admin"]), async (req, res) => {
       pages: Math.ceil(total / Number(limit)),
     });
   } catch (err) {
+    console.error("Leave GET error:", err);
     res.status(500).json({ message: err.message || "Server error" });
   }
 });
@@ -227,52 +231,69 @@ router.get(
 
 // PATCH /api/leave/:id/decision
 // PATCH /api/leave/:id/decision
-router.patch("/:id/decision", auth, roleCheck(["Warden", "Admin"]), async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { action, comment } = req.body;
+router.patch(
+  "/:id/decision",
+  auth,
+  roleCheck(["Warden", "Admin"]),
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { action, comment } = req.body;
 
-    const leave = await Leave.findById(id);
-    if (!leave) return res.status(404).json({ message: "Leave not found" });
-    if (leave.status !== "pending") return res.status(400).json({ message: "Leave already processed" });
+      const leave = await Leave.findById(id);
+      if (!leave) return res.status(404).json({ message: "Leave not found" });
+      if (leave.status !== "pending")
+        return res.status(400).json({ message: "Leave already processed" });
 
-    if (action === "approve") leave.status = "approved";
-    else if (action === "reject") leave.status = "rejected";
-    else return res.status(400).json({ message: "Invalid action" });
+      if (action === "approve") leave.status = "approved";
+      else if (action === "reject") leave.status = "rejected";
+      else return res.status(400).json({ message: "Invalid action" });
 
-    leave.decision = { by: req.user._id, at: new Date(), comment: comment?.trim() };
-    await leave.save();
+      leave.decision = {
+        by: req.user._id,
+        at: new Date(),
+        comment: comment?.trim(),
+      };
+      await leave.save();
 
-    if (leave.status === "approved") {
-      try {
-        const studentDoc = await Student.findById(leave.student).lean();
-        await applyApprovedLeaveToAttendance(leave, studentDoc); // <-- this updates Attendance for each day
-      } catch (e) {
-        console.error("[LEAVE→ATT] Failed apply for", leave._id, e);
+      if (leave.status === "approved") {
+        try {
+          const studentDoc = await Student.findById(leave.student).lean();
+          await applyApprovedLeaveToAttendance(leave, studentDoc); // <-- this updates Attendance for each day
+        } catch (e) {
+          console.error("[LEAVE→ATT] Failed apply for", leave._id, e);
+        }
       }
-    }
 
-    res.json({ message: `Leave ${leave.status}`, leave });
-  } catch (err) {
-    res.status(500).json({ message: err.message || "Server error" });
-  }
-});
-
-router.post("/:id/force-sync", auth, roleCheck(["Warden","Admin"]), async (req, res) => {
-  try {
-    const { id } = req.params;
-    const leave = await Leave.findById(id);
-    if (!leave) return res.status(404).json({ message: "Leave not found" });
-    if (leave.status !== "approved") {
-      return res.status(400).json({ message: "Leave is not approved; nothing to sync." });
+      res.json({ message: `Leave ${leave.status}`, leave });
+    } catch (err) {
+      res.status(500).json({ message: err.message || "Server error" });
     }
-    const studentDoc = await Student.findById(leave.student).lean();
-    await applyApprovedLeaveToAttendance(leave, studentDoc);
-    res.json({ message: "Synced approved leave into Attendance." });
-  } catch (e) {
-    console.error("force-sync error:", e);
-    res.status(500).json({ message: e.message || "Server error" });
   }
-});
+);
+
+router.post(
+  "/:id/force-sync",
+  auth,
+  roleCheck(["Warden", "Admin"]),
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      const leave = await Leave.findById(id);
+      if (!leave) return res.status(404).json({ message: "Leave not found" });
+      if (leave.status !== "approved") {
+        return res
+          .status(400)
+          .json({ message: "Leave is not approved; nothing to sync." });
+      }
+      const studentDoc = await Student.findById(leave.student).lean();
+      await applyApprovedLeaveToAttendance(leave, studentDoc);
+      res.json({ message: "Synced approved leave into Attendance." });
+    } catch (e) {
+      console.error("force-sync error:", e);
+      res.status(500).json({ message: e.message || "Server error" });
+    }
+  }
+);
 
 module.exports = router;

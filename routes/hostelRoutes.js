@@ -179,7 +179,6 @@ router.put(
 
 // routes/hostelRoutes.js
 
-
 router.post("/student/book-bed", auth, roleCheck(["student"]), async (req, res) => {
   try {
     const { blockName, roomNumber, bedNumber, rollNo } = req.body;
@@ -220,22 +219,37 @@ router.post("/student/book-bed", auth, roleCheck(["student"]), async (req, res) 
     });
 
     if (!roomFound) return res.status(404).json({ error: "Room not found" });
-    if (roomFound.isBlocked) return res.status(400).json({ error: "Room is blocked by Admin" });
+    if (roomFound.isBlocked)
+      return res.status(400).json({ error: "Room is blocked by Admin" });
 
     // 4️⃣ Find the bed
     const bed = roomFound.beds.find((b) => b.bedNumber === bedNumber);
     if (!bed) return res.status(404).json({ error: "Bed not found" });
     if (bed.occupied) return res.status(400).json({ error: "Bed already booked" });
 
-    // 5️⃣ Book the bed
+    // 5️⃣ Book the bed inside hostel
     bed.occupied = true;
     bed.studentId = student._id;
-
     await hostel.save();
+
+    // 6️⃣ Update Student collection with selected room (skip validation)
+    await Student.updateOne(
+      { _id: student._id },
+      {
+        $set: {
+          roomNo: roomNumber,
+          blockName: blockName,
+        },
+      },
+      { runValidators: false } // ✅ prevents re-validating required fields
+    );
+
+    // 🔍 Fetch updated student
+    const updatedStudent = await Student.findById(student._id);
 
     res.json({
       message: `Bed ${bedNumber} booked in Room ${roomNumber}`,
-      student: { _id: student._id, studentName: student.studentName, rollNo: student.rollNo },
+      student: updatedStudent,
     });
   } catch (err) {
     console.error("Booking error:", err);
