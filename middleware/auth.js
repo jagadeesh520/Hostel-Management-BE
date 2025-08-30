@@ -41,11 +41,21 @@ const auth = (req, res, next) => {
 };
 
 const roleCheck = (roles) => (req, res, next) => {
-  if (!roles.includes(req.user.role)) {
+  if (!req.user || !req.user.role) {
+    return res.status(403).json({ message: "Access denied: no role in token" });
+  }
+console.log("👉 req.user from token:", req.user);
+
+  const userRole = req.user.role.toLowerCase();
+  const allowed = roles.map(r => r.toLowerCase());
+
+  if (!allowed.includes(userRole)) {
     return res.status(403).json({ message: "Access denied: insufficient role" });
   }
+
   next();
 };
+
 
 console.log("✅ auth.js loaded");
 console.log("typeof auth:", typeof auth);
