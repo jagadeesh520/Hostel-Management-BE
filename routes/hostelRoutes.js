@@ -400,6 +400,60 @@ router.delete("/admin/block-rule/:id", auth, roleCheck(["admin"]), async (req, r
   }
 });
 
+// UNALLOCATE ALL STUDENTS IN A BLOCK
+router.put(
+  "/admin/unallocate-block/:blockName",
+  auth,
+  roleCheck(["admin"]),
+  async (req, res) => {
+    try {
+      const { blockName } = req.params;
+
+      const hostel = await Hostel.findOne({ "blocks.name": blockName });
+      if (!hostel) {
+        return res.status(404).json({ message: "Block not found" });
+      }
+
+      // Track all student IDs that were unallocated
+      let studentIds = [];
+
+      hostel.blocks.forEach((block) => {
+        if (block.name === blockName) {
+          block.floors.forEach((floor) => {
+            floor.rooms.forEach((room) => {
+              room.beds.forEach((bed) => {
+                if (bed.occupied && bed.studentId) {
+                  studentIds.push(bed.studentId);
+                  bed.occupied = false;
+                  bed.studentId = null;
+                }
+              });
+            });
+          });
+        }
+      });
+
+      await hostel.save();
+
+      // Clear blockName and roomNo from students
+      if (studentIds.length > 0) {
+        await Student.updateMany(
+          { _id: { $in: studentIds } },
+          { $set: { blockName: "", roomNo: "" } }
+        );
+      }
+
+      res.json({
+        message: `Unallocated ${studentIds.length} students from block ${blockName}`,
+      });
+    } catch (err) {
+      console.error("Unallocate block error:", err);
+      res.status(500).json({ message: "Server error during unallocation" });
+    }
+  }
+);
+
+
 
 // DELETE /api/hostels/:type/:blockName
 router.delete(
