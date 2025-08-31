@@ -397,13 +397,6 @@ router.post("/location/update", async (req, res) => {
   }
 }); */
 
-const fs = require("fs");
-const path = require("path");
-const { spawn } = require("child_process");
-const Student = require("../models/Student");
-const Attendance = require("../models/Attendance");
-const upload = require("../middleware/upload"); // assuming you already have multer config
-
 router.post("/recognize", upload.single("faceImage"), async (req, res) => {
   try {
     if (!req.file) {
