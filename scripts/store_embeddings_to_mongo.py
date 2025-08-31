@@ -4,8 +4,17 @@ import numpy as np
 import pymongo
 from insightface.app import FaceAnalysis
 
-# === Config ===
-FACES_DIR = r"C:/Project/College_Management/hostel-app-be/uploads/faces"
+# === Config: Faces Directory ===
+if os.name == "nt":  # Windows (local dev)
+    FACES_DIR = r"C:/Project/College_Management/hostel-app-be/uploads/faces"
+else:  # Linux (AWS)
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    FACES_DIR = os.path.join(BASE_DIR, "face_data")
+
+print(f"📂 Using faces directory: {FACES_DIR}")
+
+if not os.path.exists(FACES_DIR):
+    raise FileNotFoundError(f"❌ Faces directory not found: {FACES_DIR}")
 
 # === Connect to MongoDB Atlas ===
 client = pymongo.MongoClient(
@@ -15,7 +24,7 @@ db = client["hostelManagementDB"]
 students_collection = db["students"]
 
 # === Setup InsightFace (CPU or GPU) ===
-app = FaceAnalysis(name='buffalo_l', providers=['CPUExecutionProvider'])  # use CUDAExecutionProvider if you have GPU
+app = FaceAnalysis(name="buffalo_l", providers=["CPUExecutionProvider"])
 app.prepare(ctx_id=0)
 
 # === Process each student folder ===
@@ -31,12 +40,12 @@ for rollNo in os.listdir(FACES_DIR):
         img_path = os.path.join(student_path, image_name)
         img = cv2.imread(img_path)
         if img is None:
-            print(f"Failed to load image: {img_path}")
+            print(f"⚠️ Failed to load image: {img_path}")
             continue
 
         faces = app.get(img)
         if not faces:
-            print(f"No face found in: {img_path}")
+            print(f"⚠️ No face found in: {img_path}")
             continue
 
         embedding = faces[0].embedding
@@ -47,13 +56,8 @@ for rollNo in os.listdir(FACES_DIR):
     if len(embeddings) >= 3:
         students_collection.update_one(
             {"rollNo": rollNo},
-            {
-                "$set": {
-                    "faceEmbeddings": embeddings,
-                    "imageFiles": image_names
-                }
-            },
-            upsert=True
+            {"$set": {"faceEmbeddings": embeddings, "imageFiles": image_names}},
+            upsert=True,
         )
         print(f"[✔] Stored {len(embeddings)} embeddings for rollNo: {rollNo}")
     else:
