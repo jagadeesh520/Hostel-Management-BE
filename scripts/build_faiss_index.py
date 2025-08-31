@@ -7,7 +7,11 @@ from tqdm import tqdm
 
 # ==== Constants ====
 EMBEDDING_DIM = 512
-FAISS_DIR = "faiss_data"
+
+# Always save FAISS files inside scripts/faiss_data
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+FAISS_DIR = os.path.join(BASE_DIR, "faiss_data")
+
 INDEX_PATH = os.path.join(FAISS_DIR, "face_index.faiss")
 ROLLNOS_PKL_PATH = os.path.join(FAISS_DIR, "rollnos.pkl")
 ROLLNOS_TXT_PATH = os.path.join(FAISS_DIR, "rollnos.txt")
@@ -50,9 +54,9 @@ for student in tqdm(students, desc="Processing Students"):
             invalid_shape_students.append(roll_no)
             continue
 
+        # Normalize embedding
         normalized_emb = emb_array / np.linalg.norm(emb_array)
         all_embeddings.append(normalized_emb)
-
         rollno_list.append(roll_no)
 
 # ==== Build FAISS Index ====
@@ -87,4 +91,7 @@ if valid_students:
 
 if no_image_students or invalid_shape_students:
     all_invalid = sorted(set(no_image_students + invalid_shape_students))
-    print(f"[ℹ️] Suggestion: Roll numbers {valid_students} have valid face images. Others like {all_invalid} are missing or invalid.")
+    print(
+        f"[ℹ️] Suggestion: Roll numbers {valid_students} have valid face images. "
+        f"Others like {all_invalid} are missing or invalid."
+    )
