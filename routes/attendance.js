@@ -397,6 +397,13 @@ router.post("/location/update", async (req, res) => {
   }
 }); */
 
+const fs = require("fs");
+const path = require("path");
+const { spawn } = require("child_process");
+const Student = require("../models/Student");
+const Attendance = require("../models/Attendance");
+const upload = require("../middleware/upload"); // assuming you already have multer config
+
 router.post("/recognize", upload.single("faceImage"), async (req, res) => {
   try {
     if (!req.file) {
@@ -408,8 +415,8 @@ router.post("/recognize", upload.single("faceImage"), async (req, res) => {
       return res.status(400).json({ message: "Uploaded image not found." });
     }
 
-    // Use your venv python in scripts folder
-    const pythonPath = path.join(__dirname, "../scripts/.venv/bin/python3");
+    // ✅ Correct venv path
+    const pythonPath = path.join(__dirname, "../venv/bin/python3");
     const scriptPath = path.join(__dirname, "../scripts/recognize_from_upload.py");
 
     console.log("▶ Running Python:", pythonPath, scriptPath, imagePath, req.body.rollNo);
@@ -431,11 +438,13 @@ router.post("/recognize", upload.single("faceImage"), async (req, res) => {
     });
 
     pythonProcess.on("close", async (code) => {
+      // cleanup temp image
       fs.unlink(imagePath, (err) => {
         if (err) console.error("❌ Error deleting temp image:", err);
       });
 
       console.log("🐍 Python exited with code:", code);
+      console.log("🐍 Full Python result:", resultData);
 
       if (code !== 0) {
         return res.status(500).json({
@@ -444,19 +453,27 @@ router.post("/recognize", upload.single("faceImage"), async (req, res) => {
         });
       }
 
-      const lines = resultData.trim().split("\n");
-      const recognizedId = lines[lines.length - 1].trim();
+      let parsed;
+      try {
+        parsed = JSON.parse(resultData.trim());
+      } catch (err) {
+        console.error("❌ Failed to parse Python output as JSON:", err);
+        return res.status(500).json({ message: "Invalid recognition output", raw: resultData });
+      }
+
+      const { recognizedId, distance, status } = parsed;
       const expectedRollNo = req.body.rollNo;
 
-      console.log("✅ RecognizedId:", recognizedId, "| Expected:", expectedRollNo);
+      console.log("✅ RecognizedId:", recognizedId, "| Expected:", expectedRollNo, "| Distance:", distance);
 
-      if (!recognizedId || recognizedId === "Unknown" || recognizedId === "[]") {
+      if (!recognizedId || recognizedId === "Unknown") {
         return res.status(404).json({ message: "Student not recognized." });
       }
 
       if (recognizedId !== expectedRollNo) {
         return res.status(403).json({
           message: `Face mismatch: scanned ${recognizedId}, expected ${expectedRollNo}`,
+          distance,
           student: null,
         });
       }
@@ -503,6 +520,7 @@ router.post("/recognize", upload.single("faceImage"), async (req, res) => {
           roomNo: student.roomNo,
           blockName: student.blockName,
         },
+        distance, // include distance for debugging
       });
     });
   } catch (err) {
@@ -513,6 +531,7 @@ router.post("/recognize", upload.single("faceImage"), async (req, res) => {
     return res.status(500).json({ message: "Internal server error" });
   }
 });
+
 
 
 module.exports = router;
