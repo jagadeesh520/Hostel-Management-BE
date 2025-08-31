@@ -8,8 +8,8 @@ from insightface.app import FaceAnalysis
 if os.name == "nt":  # Windows (local dev)
     FACES_DIR = r"C:/Project/College_Management/hostel-app-be/uploads/faces"
 else:  # Linux (AWS)
-    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-    FACES_DIR = os.path.join(BASE_DIR, "face_data")
+    PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    FACES_DIR = os.path.join(PROJECT_ROOT, "uploads", "faces")
 
 print(f"📂 Using faces directory: {FACES_DIR}")
 
