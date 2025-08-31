@@ -50,9 +50,9 @@ if not os.path.exists(image_path):
     print(json.dumps({"recognizedId": "Unknown", "distance": None, "status": "error", "reason": "Image not found"}))
     sys.exit(1)
 
-# === Load Face Model ===
+# === Load Face Model (must match embeddings model) ===
 with suppress_stdout_stderr():
-    model = insightface.app.FaceAnalysis(name='buffalo_s', providers=['CPUExecutionProvider'])
+    model = insightface.app.FaceAnalysis(name='buffalo_l', providers=['CPUExecutionProvider'])
     model.prepare(ctx_id=0)
 
 # === Load Image ===
@@ -83,10 +83,14 @@ D, I = index.search(query_vector, k=3)
 distances = D[0]
 indices = I[0]
 
-threshold = 1.2  # slightly looser threshold
+threshold = 1.3  # slightly looser threshold for real-world faces
 
 if len(indices) == 0 or len(distances) == 0 or distances[0] > threshold:
-    print(json.dumps({"recognizedId": "Unknown", "distance": float(distances[0]) if len(distances) else None, "status": "unmatched"}))
+    print(json.dumps({
+        "recognizedId": "Unknown",
+        "distance": float(distances[0]) if len(distances) else None,
+        "status": "unmatched"
+    }))
 else:
     matched_id = student_ids[indices[0]]
     status = "matched"
