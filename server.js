@@ -52,6 +52,9 @@ app.use("/api/upi", require("./routes/upiRoutes"));
 
 app.use('/api/leave', require('./routes/leave'));
 
+app.get('/', (req, res) => {
+  res.send('Hostel Management API is running');
+});
 
 app.listen(process.env.PORT, () => {
   console.log(`Server running on port ${process.env.PORT}`);
