@@ -15,22 +15,26 @@ router.post("/mark", auth, roleCheck(["Warden"]), async (req, res) => {
   try {
     let {
       studentId,
-      status,              // "Present" | "Absent"
-      date,                // any ISO-like date input
+      status, // "Present" | "Absent"
+      date, // any ISO-like date input
       studentName,
       roomNo,
       rollNo,
       blockName,
-      force                // optional: boolean or "1"/"true"
+      force, // optional: boolean or "1"/"true"
     } = req.body;
 
     // ---- 1) Validate inputs
     if (!studentId || !status || !date) {
-      return res.status(400).json({ message: "studentId, status, and date are required." });
+      return res
+        .status(400)
+        .json({ message: "studentId, status, and date are required." });
     }
     status = String(status).trim();
     if (!["Present", "Absent"].includes(status)) {
-      return res.status(400).json({ message: "status must be 'Present' or 'Absent'." });
+      return res
+        .status(400)
+        .json({ message: "status must be 'Present' or 'Absent'." });
     }
     const forceBool =
       force === true || force === "true" || force === "1" || force === 1;
@@ -79,7 +83,12 @@ router.post("/mark", auth, roleCheck(["Warden"]), async (req, res) => {
     );
 
     // If protected by approved-leave flag and not forced, tell client
-    if (!forceBool && result.matchedCount === 0 && result.upsertedCount !== 1 && result.modifiedCount === 0) {
+    if (
+      !forceBool &&
+      result.matchedCount === 0 &&
+      result.upsertedCount !== 1 &&
+      result.modifiedCount === 0
+    ) {
       return res.status(409).json({
         message: "This day is an approved-leave absence and cannot be changed.",
         hint: "Send { force: true } to override if you really need to.",
@@ -90,23 +99,25 @@ router.post("/mark", auth, roleCheck(["Warden"]), async (req, res) => {
     const doc = await Attendance.findOne({ studentId, date: dateStr }).lean();
 
     return res.json({
-      message:
-        result.upsertedCount ? "Attendance created." :
-        result.modifiedCount ? "Attendance updated." :
-        "No change required.",
+      message: result.upsertedCount
+        ? "Attendance created."
+        : result.modifiedCount
+        ? "Attendance updated."
+        : "No change required.",
       attendance: doc,
     });
   } catch (err) {
     // Handle duplicate key races cleanly
     if (err?.code === 11000) {
-      return res.status(409).json({ message: "Duplicate attendance for this date exists. Try updating instead." });
+      return res.status(409).json({
+        message:
+          "Duplicate attendance for this date exists. Try updating instead.",
+      });
     }
     console.error("❌ Error saving/updating attendance:", err);
     return res.status(500).json({ message: "Server error" });
   }
 });
-
-
 
 // GET attendance for a specific date
 router.get("/list", auth, roleCheck(["Warden"]), async (req, res) => {
@@ -410,12 +421,24 @@ router.post("/recognize", upload.single("faceImage"), async (req, res) => {
 
     // ✅ Correct venv path
     const pythonPath = path.join(__dirname, "../venv/bin/python3");
-    const scriptPath = path.join(__dirname, "../scripts/recognize_from_upload.py");
+    const scriptPath = path.join(
+      __dirname,
+      "../scripts/recognize_from_upload.py"
+    );
 
-    console.log("▶ Running Python:", pythonPath, scriptPath, imagePath, req.body.rollNo);
+    console.log(
+      "▶ Running Python:",
+      pythonPath,
+      scriptPath,
+      imagePath,
+      req.body.rollNo
+    );
 
-    // Pass rollNo as argument also
-    const pythonProcess = spawn(pythonPath, [scriptPath, imagePath, req.body.rollNo]);
+    const pythonProcess = spawn(pythonPath, [
+      scriptPath,
+      imagePath,
+      req.body.rollNo,
+    ]);
 
     let resultData = "";
     let errorData = "";
@@ -451,19 +474,39 @@ router.post("/recognize", upload.single("faceImage"), async (req, res) => {
         parsed = JSON.parse(resultData.trim());
       } catch (err) {
         console.error("❌ Failed to parse Python output as JSON:", err);
-        return res.status(500).json({ message: "Invalid recognition output", raw: resultData });
+        return res
+          .status(500)
+          .json({ message: "Invalid recognition output", raw: resultData });
       }
 
       const { recognizedId, distance, status } = parsed;
       const expectedRollNo = req.body.rollNo;
 
-      console.log("✅ RecognizedId:", recognizedId, "| Expected:", expectedRollNo, "| Distance:", distance);
+      console.log(
+        "✅ RecognizedId:",
+        recognizedId,
+        "| Expected:",
+        expectedRollNo,
+        "| Status:",
+        status,
+        "| Distance:",
+        distance
+      );
 
-      if (!recognizedId || recognizedId === "Unknown") {
-        return res.status(404).json({ message: "Student not recognized." });
+      // === Handle statuses ===
+      if (status === "error") {
+        return res
+          .status(500)
+          .json({ message: "Recognition error", details: parsed });
       }
 
-      if (recognizedId !== expectedRollNo) {
+      if (status === "unmatched") {
+        return res
+          .status(404)
+          .json({ message: "No matching student found", distance });
+      }
+
+      if (status === "mismatch") {
         return res.status(403).json({
           message: `Face mismatch: scanned ${recognizedId}, expected ${expectedRollNo}`,
           distance,
@@ -471,50 +514,58 @@ router.post("/recognize", upload.single("faceImage"), async (req, res) => {
         });
       }
 
-      const student = await Student.findOne({ rollNo: recognizedId });
-      if (!student) {
-        return res.status(404).json({ message: "Student not found in DB." });
-      }
-
-      // ✅ Save attendance
-      const now = new Date();
-      const dateOnly = now.toISOString().split("T")[0];
-
-      let existingAttendance = await Attendance.findOne({
-        studentId: student._id,
-        date: dateOnly,
-      });
-
-      if (existingAttendance) {
-        if (existingAttendance.status !== "Present") {
-          existingAttendance.status = "Present";
-          existingAttendance.timestamp = now;
-          await existingAttendance.save();
+      if (status === "matched") {
+        // ✅ Fetch student from DB
+        const student = await Student.findOne({ rollNo: recognizedId });
+        if (!student) {
+          return res.status(404).json({ message: "Student not found in DB." });
         }
-      } else {
-        await Attendance.create({
+
+        // ✅ Save attendance
+        const now = new Date();
+        const dateOnly = now.toISOString().split("T")[0];
+
+        let existingAttendance = await Attendance.findOne({
           studentId: student._id,
-          studentName: student.studentName,
-          roomNo: student.roomNo,
-          rollNo: student.rollNo,
-          blockName: student.blockName,
-          status: "Present",
-          timestamp: now,
           date: dateOnly,
+        });
+
+        if (existingAttendance) {
+          if (existingAttendance.status !== "Present") {
+            existingAttendance.status = "Present";
+            existingAttendance.timestamp = now;
+            await existingAttendance.save();
+          }
+        } else {
+          await Attendance.create({
+            studentId: student._id,
+            studentName: student.studentName,
+            roomNo: student.roomNo,
+            rollNo: student.rollNo,
+            blockName: student.blockName,
+            status: "Present",
+            timestamp: now,
+            date: dateOnly,
+          });
+        }
+
+        return res.status(200).json({
+          message: "Attendance marked successfully",
+          student: {
+            id: student._id,
+            rollNo: student.rollNo,
+            studentName: student.studentName,
+            roomNo: student.roomNo,
+            blockName: student.blockName,
+          },
+          distance,
         });
       }
 
-      return res.status(200).json({
-        message: "Attendance marked successfully",
-        student: {
-          id: student._id,
-          rollNo: student.rollNo,
-          studentName: student.studentName,
-          roomNo: student.roomNo,
-          blockName: student.blockName,
-        },
-        distance, // include distance for debugging
-      });
+      // Default catch (shouldn’t happen)
+      return res
+        .status(500)
+        .json({ message: "Unexpected recognition status", parsed });
     });
   } catch (err) {
     console.error("❌ Error in /recognize route:", err);
@@ -524,7 +575,5 @@ router.post("/recognize", upload.single("faceImage"), async (req, res) => {
     return res.status(500).json({ message: "Internal server error" });
   }
 });
-
-
 
 module.exports = router;
