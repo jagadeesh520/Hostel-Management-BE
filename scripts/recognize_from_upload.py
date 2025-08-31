@@ -60,7 +60,7 @@ if not os.path.exists(image_path):
 # === Load Face Model ===
 print("[] Initializing face model...")
 with suppress_stdout_stderr():
-    model = insightface.app.FaceAnalysis(name='buffalo_l', providers=['CPUExecutionProvider'])
+    model = insightface.app.FaceAnalysis(name='buffalo_s', providers=['CPUExecutionProvider'])
     model.prepare(ctx_id=0)
 print("[] Face model ready")
 
