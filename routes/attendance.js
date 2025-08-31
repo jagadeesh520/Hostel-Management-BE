@@ -274,7 +274,8 @@ router.post("/recognize", upload.single("faceImage"), async (req, res) => {
       return res.status(400).json({ message: "Uploaded image not found." });
     }
 
-    const pythonPath = "C:\\Program Files\\Python39\\python.exe";
+    //const pythonPath = "C:\\Program Files\\Python39\\python.exe";
+    const pythonPath = process.env.PYTHON_PATH || "python3"; 
     const scriptPath = path.join(
       __dirname,
       "../scripts/recognize_from_upload.py"
