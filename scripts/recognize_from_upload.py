@@ -19,8 +19,8 @@ def suppress_stdout_stderr():
             sys.stdout, sys.stderr = old_stdout, old_stderr
 
 # === Paths ===
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-FAISS_DIR = os.path.join(BASE_DIR, "faiss_data")
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))        # scripts/
+FAISS_DIR = os.path.join(BASE_DIR, "faiss_data")             # scripts/faiss_data
 INDEX_PATH = os.path.join(FAISS_DIR, "face_index.faiss")
 IDS_PATH = os.path.join(FAISS_DIR, "rollnos.pkl")
 
