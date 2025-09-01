@@ -277,60 +277,48 @@ router.post("/location/update", async (req, res) => {
 router.post("/recognize", upload.single("faceImage"), async (req, res) => {
   try {
     if (!req.file) {
-      return res
-        .status(200)
-        .json({ status: "error", message: "No image uploaded" });
+      console.warn("[NODE] No image uploaded");
+      return res.status(200).json({ status: "error", message: "No image uploaded" });
     }
 
     const imagePath = req.file.path;
     if (!fs.existsSync(imagePath)) {
-      return res
-        .status(200)
-        .json({ status: "error", message: "Uploaded image not found" });
+      console.warn("[NODE] Uploaded image not found:", imagePath);
+      return res.status(200).json({ status: "error", message: "Uploaded image not found" });
     }
 
-    // ✅ Correct venv path
+    // ✅ Use venv python
     const pythonPath = path.join(__dirname, "../venv/bin/python3");
-    const scriptPath = path.join(
-      __dirname,
-      "../scripts/recognize_from_upload.py"
-    );
+    const scriptPath = path.join(__dirname, "../scripts/recognize_from_upload.py");
 
-    console.log(
-      "▶ Running Python:",
-      pythonPath,
-      scriptPath,
-      imagePath,
-      req.body.rollNo
-    );
+    console.log("[NODE] Running Python:", pythonPath, scriptPath, imagePath, req.body.rollNo);
 
-    const pythonProcess = spawn(pythonPath, [
-      scriptPath,
-      imagePath,
-      req.body.rollNo,
-    ]);
+    const pythonProcess = spawn(pythonPath, [scriptPath, imagePath, req.body.rollNo]);
 
     let resultData = "";
     let errorData = "";
 
     pythonProcess.stdout.on("data", (data) => {
-      console.log("🐍 Python stdout:", data.toString());
-      resultData += data.toString();
+      const msg = data.toString();
+      console.log("[NODE] Python stdout:", msg.trim());
+      resultData += msg;
     });
 
     pythonProcess.stderr.on("data", (data) => {
-      console.error("🐍 Python stderr:", data.toString());
-      errorData += data.toString();
+      const errMsg = data.toString();
+      console.error("[NODE] Python stderr:", errMsg.trim());
+      errorData += errMsg;
     });
 
     pythonProcess.on("close", async (code) => {
-      // cleanup temp image
+      // cleanup
       fs.unlink(imagePath, (err) => {
-        if (err) console.error("❌ Error deleting temp image:", err);
+        if (err) console.error("[NODE] Error deleting temp image:", err);
+        else console.log("[NODE] Deleted temp image:", imagePath);
       });
 
-      console.log("🐍 Python exited with code:", code);
-      console.log("🐍 Full Python result:", resultData);
+      console.log("[NODE] Python process exited with code:", code);
+      console.log("[NODE] Full Python result:", resultData.trim());
 
       if (code !== 0) {
         return res.status(200).json({
@@ -344,7 +332,7 @@ router.post("/recognize", upload.single("faceImage"), async (req, res) => {
       try {
         parsed = JSON.parse(resultData.trim());
       } catch (err) {
-        console.error("❌ Failed to parse Python output as JSON:", err);
+        console.error("[NODE] Failed to parse Python output:", err.message);
         return res.status(200).json({
           status: "error",
           message: "Invalid recognition output",
@@ -355,15 +343,11 @@ router.post("/recognize", upload.single("faceImage"), async (req, res) => {
       const { recognizedId, distance, status } = parsed;
       const expectedRollNo = req.body.rollNo;
 
-      console.log(
-        "✅ RecognizedId:",
-        recognizedId,
-        "| Expected:",
-        expectedRollNo,
-        "| Status:",
-        status,
-        "| Distance:",
-        distance
+      console.log("[NODE] Parsed result =>",
+        "RecognizedId:", recognizedId,
+        "| Expected:", expectedRollNo,
+        "| Status:", status,
+        "| Distance:", distance
       );
 
       // === Handle statuses ===
@@ -384,28 +368,25 @@ router.post("/recognize", upload.single("faceImage"), async (req, res) => {
       }
 
       if (status === "matched") {
-        // ✅ Fetch student from DB
         const student = await Student.findOne({ rollNo: recognizedId });
         if (!student) {
-          return res
-            .status(200)
-            .json({ status: "error", message: "Student not found in DB" });
+          console.warn("[NODE] Student not found in DB:", recognizedId);
+          return res.status(200).json({ status: "error", message: "Student not found in DB" });
         }
 
-        // ✅ Save attendance
         const now = new Date();
         const dateOnly = now.toISOString().split("T")[0];
 
-        let existingAttendance = await Attendance.findOne({
-          studentId: student._id,
-          date: dateOnly,
-        });
+        let existingAttendance = await Attendance.findOne({ studentId: student._id, date: dateOnly });
 
         if (existingAttendance) {
           if (existingAttendance.status !== "Present") {
             existingAttendance.status = "Present";
             existingAttendance.timestamp = now;
             await existingAttendance.save();
+            console.log("[NODE] Attendance updated for:", student.studentName);
+          } else {
+            console.log("[NODE] Attendance already marked for:", student.studentName);
           }
         } else {
           await Attendance.create({
@@ -418,6 +399,7 @@ router.post("/recognize", upload.single("faceImage"), async (req, res) => {
             timestamp: now,
             date: dateOnly,
           });
+          console.log("[NODE] Attendance created for:", student.studentName);
         }
 
         return res.status(200).json({
@@ -434,24 +416,21 @@ router.post("/recognize", upload.single("faceImage"), async (req, res) => {
         });
       }
 
-      // Default fallback
-      return res
-        .status(200)
-        .json({
-          status: "error",
-          message: "Unexpected recognition status",
-          parsed,
-        });
+      // Fallback
+      return res.status(200).json({
+        status: "error",
+        message: "Unexpected recognition status",
+        parsed,
+      });
     });
   } catch (err) {
-    console.error("❌ Error in /recognize route:", err);
+    console.error("[NODE] Error in /recognize route:", err);
     if (req.file?.path && fs.existsSync(req.file.path)) {
       fs.unlink(req.file.path, () => {});
     }
-    return res
-      .status(200)
-      .json({ status: "error", message: "Internal server error" });
+    return res.status(200).json({ status: "error", message: "Internal server error" });
   }
 });
+
 
 module.exports = router;
