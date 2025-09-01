@@ -330,7 +330,10 @@ router.post("/recognize", upload.single("faceImage"), async (req, res) => {
 
       let parsed;
       try {
-        parsed = JSON.parse(resultData.trim());
+        // ✅ take only the last non-empty line (avoids logs breaking JSON.parse)
+        const lines = resultData.trim().split("\n").filter(l => l.trim() !== "");
+        const lastLine = lines[lines.length - 1];
+        parsed = JSON.parse(lastLine);
       } catch (err) {
         console.error("[NODE] Failed to parse Python output:", err.message);
         return res.status(200).json({
