@@ -10,7 +10,11 @@ const app = express();
 app.use(express.json());
 
 const cors = require("cors");
-app.use(cors());
+app.use(cors({
+  origin: "*",        // allow all origins for now (for testing)
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+}));
 
 console.log('Environment variables loaded:');
 console.log('JWT_SECRET:', process.env.JWT_SECRET ? 'Set' : 'Not set');

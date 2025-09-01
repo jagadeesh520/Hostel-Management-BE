@@ -278,22 +278,39 @@ router.post("/recognize", upload.single("faceImage"), async (req, res) => {
   try {
     if (!req.file) {
       console.warn("[NODE] No image uploaded");
-      return res.status(200).json({ status: "error", message: "No image uploaded" });
+      return res
+        .status(200)
+        .json({ status: "error", message: "No image uploaded" });
     }
 
     const imagePath = req.file.path;
     if (!fs.existsSync(imagePath)) {
       console.warn("[NODE] Uploaded image not found:", imagePath);
-      return res.status(200).json({ status: "error", message: "Uploaded image not found" });
+      return res
+        .status(200)
+        .json({ status: "error", message: "Uploaded image not found" });
     }
 
     // ✅ Use venv python
     const pythonPath = path.join(__dirname, "../venv/bin/python3");
-    const scriptPath = path.join(__dirname, "../scripts/recognize_from_upload.py");
+    const scriptPath = path.join(
+      __dirname,
+      "../scripts/recognize_from_upload.py"
+    );
 
-    console.log("[NODE] Running Python:", pythonPath, scriptPath, imagePath, req.body.rollNo);
+    console.log(
+      "[NODE] Running Python:",
+      pythonPath,
+      scriptPath,
+      imagePath,
+      req.body.rollNo
+    );
 
-    const pythonProcess = spawn(pythonPath, [scriptPath, imagePath, req.body.rollNo]);
+    const pythonProcess = spawn(pythonPath, [
+      scriptPath,
+      imagePath,
+      req.body.rollNo,
+    ]);
 
     let resultData = "";
     let errorData = "";
@@ -331,7 +348,10 @@ router.post("/recognize", upload.single("faceImage"), async (req, res) => {
       let parsed;
       try {
         // ✅ take only the last non-empty line (avoids logs breaking JSON.parse)
-        const lines = resultData.trim().split("\n").filter(l => l.trim() !== "");
+        const lines = resultData
+          .trim()
+          .split("\n")
+          .filter((l) => l.trim() !== "");
         const lastLine = lines[lines.length - 1];
         parsed = JSON.parse(lastLine);
       } catch (err) {
@@ -346,11 +366,16 @@ router.post("/recognize", upload.single("faceImage"), async (req, res) => {
       const { recognizedId, distance, status } = parsed;
       const expectedRollNo = req.body.rollNo;
 
-      console.log("[NODE] Parsed result =>",
-        "RecognizedId:", recognizedId,
-        "| Expected:", expectedRollNo,
-        "| Status:", status,
-        "| Distance:", distance
+      console.log(
+        "[NODE] Parsed result =>",
+        "RecognizedId:",
+        recognizedId,
+        "| Expected:",
+        expectedRollNo,
+        "| Status:",
+        status,
+        "| Distance:",
+        distance
       );
 
       // === Handle statuses ===
@@ -374,13 +399,18 @@ router.post("/recognize", upload.single("faceImage"), async (req, res) => {
         const student = await Student.findOne({ rollNo: recognizedId });
         if (!student) {
           console.warn("[NODE] Student not found in DB:", recognizedId);
-          return res.status(200).json({ status: "error", message: "Student not found in DB" });
+          return res
+            .status(200)
+            .json({ status: "error", message: "Student not found in DB" });
         }
 
         const now = new Date();
         const dateOnly = now.toISOString().split("T")[0];
 
-        let existingAttendance = await Attendance.findOne({ studentId: student._id, date: dateOnly });
+        let existingAttendance = await Attendance.findOne({
+          studentId: student._id,
+          date: dateOnly,
+        });
 
         if (existingAttendance) {
           if (existingAttendance.status !== "Present") {
@@ -389,7 +419,10 @@ router.post("/recognize", upload.single("faceImage"), async (req, res) => {
             await existingAttendance.save();
             console.log("[NODE] Attendance updated for:", student.studentName);
           } else {
-            console.log("[NODE] Attendance already marked for:", student.studentName);
+            console.log(
+              "[NODE] Attendance already marked for:",
+              student.studentName
+            );
           }
         } else {
           await Attendance.create({
@@ -431,9 +464,10 @@ router.post("/recognize", upload.single("faceImage"), async (req, res) => {
     if (req.file?.path && fs.existsSync(req.file.path)) {
       fs.unlink(req.file.path, () => {});
     }
-    return res.status(200).json({ status: "error", message: "Internal server error" });
+    return res
+      .status(200)
+      .json({ status: "error", message: "Internal server error" });
   }
 });
-
 
 module.exports = router;
