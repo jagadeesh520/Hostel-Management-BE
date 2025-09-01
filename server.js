@@ -58,6 +58,7 @@ app.use('/api/leave', require('./routes/leave'));
 
 app.use('/api/mess', require('./routes/mess'));
 app.use('/api/establishment', require('./routes/establishment'));
+app.use('/api/payment', require('./routes/payment'));
 
 app.get('/', (req, res) => {
   res.send('Hostel Management API is running');

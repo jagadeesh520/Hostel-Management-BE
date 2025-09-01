@@ -32,34 +32,25 @@ router.post("/payments", async (req, res) => {
 router.get("/dues/:rollNo", async (req, res) => {
   try {
     const { rollNo } = req.params;
+    console.log("Looking up dues for rollNo param:", JSON.stringify(rollNo));
 
-    // 1) Manual ledger record
-    const ledger = await MessLedger.findOne({ rollNo });
-    const openingOverdue = ledger?.overdue || 0;
-    const openingPaid = ledger?.paid || 0;
+    // Look up from MessLedger directly (manual entries)
+    const ledger = await MessLedger.findOne({ rollNo: String(rollNo).trim() });
+    console.log("Ledger found:", ledger);
 
-    // 2) Payments recorded in system
-    const paidFromSystem = await MessPayment.aggregate([
-      { $match: { rollNo } },
-      { $group: { _id: null, totalPaid: { $sum: "$amount" } } }
-    ]);
-    const paidAfterSystem = paidFromSystem[0]?.totalPaid || 0;
-
-    // 3) Total paid = manual + system
-    const totalPaid = openingPaid + paidAfterSystem;
-
-    // 4) Due = opening overdue - total paid
-    const due = openingOverdue - totalPaid;
+    if (!ledger) {
+      return res.json({ rollNo, overdue: 0, paid: 0 });
+    }
 
     res.json({
       rollNo,
-      overdue: openingOverdue,
-      paid: totalPaid,
-      due: due < 0 ? 0 : due // never negative
+      overdue: ledger.overdue || 0,
+      paid: ledger.paid || 0
     });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
 });
+
 
 module.exports = router;
