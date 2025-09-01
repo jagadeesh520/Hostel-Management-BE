@@ -411,12 +411,16 @@ router.post("/location/update", async (req, res) => {
 router.post("/recognize", upload.single("faceImage"), async (req, res) => {
   try {
     if (!req.file) {
-      return res.status(400).json({ message: "No image uploaded." });
+      return res
+        .status(200)
+        .json({ status: "error", message: "No image uploaded" });
     }
 
     const imagePath = req.file.path;
     if (!fs.existsSync(imagePath)) {
-      return res.status(400).json({ message: "Uploaded image not found." });
+      return res
+        .status(200)
+        .json({ status: "error", message: "Uploaded image not found" });
     }
 
     // ✅ Correct venv path
@@ -463,8 +467,9 @@ router.post("/recognize", upload.single("faceImage"), async (req, res) => {
       console.log("🐍 Full Python result:", resultData);
 
       if (code !== 0) {
-        return res.status(500).json({
-          message: "Recognition failed.",
+        return res.status(200).json({
+          status: "error",
+          message: "Recognition failed",
           error: errorData || "Unknown error",
         });
       }
@@ -474,9 +479,11 @@ router.post("/recognize", upload.single("faceImage"), async (req, res) => {
         parsed = JSON.parse(resultData.trim());
       } catch (err) {
         console.error("❌ Failed to parse Python output as JSON:", err);
-        return res
-          .status(500)
-          .json({ message: "Invalid recognition output", raw: resultData });
+        return res.status(200).json({
+          status: "error",
+          message: "Invalid recognition output",
+          raw: resultData,
+        });
       }
 
       const { recognizedId, distance, status } = parsed;
@@ -495,22 +502,18 @@ router.post("/recognize", upload.single("faceImage"), async (req, res) => {
 
       // === Handle statuses ===
       if (status === "error") {
-        return res
-          .status(500)
-          .json({ message: "Recognition error", details: parsed });
+        return res.status(200).json({ status: "error", details: parsed });
       }
 
       if (status === "unmatched") {
-        return res
-          .status(404)
-          .json({ message: "No matching student found", distance });
+        return res.status(200).json({ status: "unmatched", distance });
       }
 
       if (status === "mismatch") {
-        return res.status(403).json({
+        return res.status(200).json({
+          status: "mismatch",
           message: `Face mismatch: scanned ${recognizedId}, expected ${expectedRollNo}`,
           distance,
-          student: null,
         });
       }
 
@@ -518,7 +521,9 @@ router.post("/recognize", upload.single("faceImage"), async (req, res) => {
         // ✅ Fetch student from DB
         const student = await Student.findOne({ rollNo: recognizedId });
         if (!student) {
-          return res.status(404).json({ message: "Student not found in DB." });
+          return res
+            .status(200)
+            .json({ status: "error", message: "Student not found in DB" });
         }
 
         // ✅ Save attendance
@@ -550,6 +555,7 @@ router.post("/recognize", upload.single("faceImage"), async (req, res) => {
         }
 
         return res.status(200).json({
+          status: "matched",
           message: "Attendance marked successfully",
           student: {
             id: student._id,
@@ -562,17 +568,23 @@ router.post("/recognize", upload.single("faceImage"), async (req, res) => {
         });
       }
 
-      // Default catch (shouldn’t happen)
+      // Default fallback
       return res
-        .status(500)
-        .json({ message: "Unexpected recognition status", parsed });
+        .status(200)
+        .json({
+          status: "error",
+          message: "Unexpected recognition status",
+          parsed,
+        });
     });
   } catch (err) {
     console.error("❌ Error in /recognize route:", err);
     if (req.file?.path && fs.existsSync(req.file.path)) {
       fs.unlink(req.file.path, () => {});
     }
-    return res.status(500).json({ message: "Internal server error" });
+    return res
+      .status(200)
+      .json({ status: "error", message: "Internal server error" });
   }
 });
 
