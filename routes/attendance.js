@@ -472,6 +472,7 @@ router.post("/recognize", upload.single("faceImage"), async (req, res) => {
 
 // Store embeddings
 router.post("/store-embeddings", (req, res) => {
+  console.log("🔥 store-embeddings hit!");
   const pythonPath = path.join(__dirname, "../venv/bin/python3");
   const scriptPath = path.join(__dirname, "../scripts/store_embeddings_to_mongo.py");
   const process = spawn(pythonPath, [scriptPath]);
@@ -490,6 +491,7 @@ router.post("/store-embeddings", (req, res) => {
 
 // Build FAISS index
 router.post("/build-index", (req, res) => {
+  console.log("🔥 build-embeddings hit!");
   const pythonPath = path.join(__dirname, "../venv/bin/python3");
   const scriptPath = path.join(__dirname, "../scripts/build_faiss_index.py");
   const process = spawn(pythonPath, [scriptPath]);
