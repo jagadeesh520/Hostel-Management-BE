@@ -470,4 +470,41 @@ router.post("/recognize", upload.single("faceImage"), async (req, res) => {
   }
 });
 
+// Store embeddings
+router.post("/store-embeddings", (req, res) => {
+  const pythonPath = path.join(__dirname, "../venv/bin/python3");
+  const scriptPath = path.join(__dirname, "../scripts/store_embeddings_to_mongo.py");
+  const process = spawn(pythonPath, [scriptPath]);
+
+  process.stdout.on("data", (data) => console.log(`Embeddings Output: ${data}`));
+  process.stderr.on("data", (data) => console.error(`Embeddings Error: ${data}`));
+
+  process.on("close", (code) => {
+    if (code === 0) {
+      res.json({ success: true, message: "Embeddings stored successfully" });
+    } else {
+      res.status(500).json({ success: false, message: "Failed to store embeddings" });
+    }
+  });
+});
+
+// Build FAISS index
+router.post("/build-index", (req, res) => {
+  const pythonPath = path.join(__dirname, "../venv/bin/python3");
+  const scriptPath = path.join(__dirname, "../scripts/build_faiss_index.py");
+  const process = spawn(pythonPath, [scriptPath]);
+
+  process.stdout.on("data", (data) => console.log(`Index Output: ${data}`));
+  process.stderr.on("data", (data) => console.error(`Index Error: ${data}`));
+
+  process.on("close", (code) => {
+    if (code === 0) {
+      res.json({ success: true, message: "FAISS index built successfully" });
+    } else {
+      res.status(500).json({ success: false, message: "Failed to build index" });
+    }
+  });
+});
+
+
 module.exports = router;
