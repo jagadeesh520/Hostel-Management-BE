@@ -266,46 +266,111 @@ router.get(
     try {
       const { rollNo } = req.params;
 
-      // 1. Get student details
-      const student = await Student.findOne({ rollNo });
+      // --- helpers ---
+      const ORDINAL_WORDS = { first: 1, second: 2, third: 3, fourth: 4 };
+      const ROMAN = { i: 1, ii: 2, iii: 3, iv: 4 };
+
+      const normalizeGender = (g = "") =>
+        String(g).trim().toLowerCase(); // "female", "male"
+
+      const normalizeYear = (y = "") => {
+        const s = String(y).trim().toLowerCase();
+
+        // 1) direct digit
+        const digit = s.match(/\b([1-4])\b/);
+        if (digit) return Number(digit[1]);
+
+        // 2) 1st/2nd/3rd/4th (with or without "year")
+        const ordinal = s.match(/\b([1-4])(st|nd|rd|th)\b/);
+        if (ordinal) return Number(ordinal[1]);
+
+        // 3) word forms ("second year")
+        for (const [word, num] of Object.entries(ORDINAL_WORDS)) {
+          if (s.includes(word)) return num;
+        }
+
+        // 4) roman numerals ("ii year")
+        const roman = s.match(/\b(i{1,3}|iv)\b/);
+        if (roman) return ROMAN[roman[1]] || null;
+
+        // 5) fallback: if it ends with "year", try to extract leading number
+        const num = s.match(/(\d)\s*year/);
+        if (num) return Number(num[1]);
+
+        return null; // unknown
+      };
+
+      // --- 1) Student ---
+      const student = await Student.findOne({ rollNo })
+        .select("studentName rollNo year gender")
+        .lean();
+
       if (!student) {
         return res.status(404).json({ error: "Student not found" });
       }
 
-      // 2. Find block assignment rule (gender + year)
-      const rule = await BlockRule.findOne({
-        gender: student.gender,
-        year: student.year,
-      });
+      const stdGender = normalizeGender(student.gender);
+      const stdYearNum = normalizeYear(student.year);
 
-      if (!rule) {
-        return res.status(404).json({
-          error: `No block assigned for ${student.gender} - ${student.year}`,
-        });
+      if (!stdYearNum) {
+        return res
+          .status(400)
+          .json({ error: `Unrecognized student year format: "${student.year}"` });
       }
 
-      // 3. Find actual hostel + block
-      const hostel = await Hostel.findOne({ "blocks.name": rule.blockName });
-      if (!hostel) {
-        return res.status(404).json({ error: "Block not found in hostel records" });
+      // --- 2) Pull rules by gender (case-insensitive), then normalize year in JS ---
+      const rulesRaw = await BlockRule.find({
+        gender: new RegExp(`^${student.gender}\\s*$`, "i"),
+      })
+        .select("blockName gender year")
+        .lean();
+
+      // Filter by normalized year number
+      const rules = rulesRaw.filter((r) => normalizeYear(r.year) === stdYearNum);
+
+      if (!rules.length) {
+        return res
+          .status(404)
+          .json({ error: `No block assigned for ${student.gender} - ${student.year}` });
       }
 
-      const block = hostel.blocks.find((b) => b.name === rule.blockName);
-      if (!block) {
-        return res.status(404).json({ error: "Block missing in hostel structure" });
+      // --- 3) Build assignments with hostel/block lookup ---
+      const assignments = await Promise.all(
+        rules.map(async (rule) => {
+          const hostel = await Hostel.findOne(
+            { "blocks.name": rule.blockName },
+            { type: 1, blocks: 1 }
+          ).lean();
+
+          if (!hostel) return null;
+
+          const block = hostel.blocks.find((b) => b.name === rule.blockName);
+          if (!block) return null;
+
+          return {
+            type: hostel.type, // "Boys" / "Girls"
+            blockName: rule.blockName,
+            floors: block.floors || [],
+          };
+        })
+      );
+
+      const validAssignments = assignments.filter(Boolean);
+      if (!validAssignments.length) {
+        return res
+          .status(404)
+          .json({ error: "No valid blocks found in hostel records" });
       }
 
-      // 4. Return final data
-      res.json({
-        type: hostel.type, // Boys / Girls
-        blockName: rule.blockName,
-        floors: block.floors,
+      // --- 4) Response ---
+      return res.json({
         student: {
           name: student.studentName,
           rollNo: student.rollNo,
           year: student.year,
           gender: student.gender,
         },
+        assignments: validAssignments,
       });
     } catch (err) {
       console.error("Assigned block fetch error:", err);
@@ -313,6 +378,8 @@ router.get(
     }
   }
 );
+
+
 
 
 // Get student's current booking
