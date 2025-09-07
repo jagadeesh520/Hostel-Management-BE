@@ -6,6 +6,7 @@ const AchievementSchema = new Schema({
   studentId: { type: Schema.Types.ObjectId, ref: "Student", required: true },
   rollNo: { type: String, required: true, index: true },
   studentName: { type: String },
+  appreciationCount: { type: Number, default: 0, min: 0 },
   title: { type: String, required: true },
   description: { type: String, required: true },
   category: { type: String, default: "Academic" },

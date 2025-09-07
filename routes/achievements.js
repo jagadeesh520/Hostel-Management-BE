@@ -4,9 +4,11 @@ const router = express.Router();
 const path = require("path");
 const fs = require("fs");
 const multer = require("multer");
+const mongoose = require("mongoose");
 
 const Achievement = require("../models/Achievement");
 const Student = require("../models/Student"); // ensure this model exists
+const Appreciation = require("../models/Appreciation");
 const { auth, roleCheck } = require("../middleware/auth");
 
 // Helper: allowed levels (lowercase for case-insensitive check)
@@ -43,7 +45,7 @@ const upload = multer({
   },
 });
 
-// inside routes/achievements.js — replace the router.post("/", ... ) handler with this
+// POST create achievement (admin)
 router.post(
   "/",
   auth,
@@ -51,17 +53,26 @@ router.post(
   upload.single("image"),
   async (req, res) => {
     try {
-      // Debug: log received fields for a short time (remove in prod)
+      // Debug: log received fields briefly (remove in prod)
       console.log("[achievements] req.body:", req.body);
       console.log("[achievements] req.query:", req.query);
       console.log("[achievements] req.headers:", {
         "content-type": req.headers["content-type"],
         "content-length": req.headers["content-length"],
       });
-      console.log("[achievements] req.file:", !!req.file, req.file ? req.file.filename : null);
+      console.log(
+        "[achievements] req.file:",
+        !!req.file,
+        req.file ? req.file.filename : null
+      );
 
       // prefer body, but fallback to query (client might have sent parameters as query)
-      const source = (req.body && Object.keys(req.body).length ? req.body : (req.query && Object.keys(req.query).length ? req.query : {}));
+      const source =
+        req.body && Object.keys(req.body).length
+          ? req.body
+          : req.query && Object.keys(req.query).length
+          ? req.query
+          : {};
 
       const {
         studentId,
@@ -76,7 +87,9 @@ router.post(
         image: imageFromBody,
       } = source;
 
-      const uploadedImagePath = req.file ? `/uploads/achievements/${req.file.filename}` : null;
+      const uploadedImagePath = req.file
+        ? `/uploads/achievements/${req.file.filename}`
+        : null;
       const image = uploadedImagePath || (imageFromBody ? String(imageFromBody) : null);
 
       // normalize
@@ -86,12 +99,21 @@ router.post(
       const level = rawLevel ? String(rawLevel).toLowerCase().trim() : "";
 
       if (!studentId && !rollNo) {
-        return res.status(400).json({ message: "studentId or rollNo is required" });
+        return res
+          .status(400)
+          .json({ message: "studentId or rollNo is required" });
       }
       if (!title) return res.status(400).json({ message: "title is required" });
-      if (!description) return res.status(400).json({ message: "description is required" });
+      if (!description)
+        return res.status(400).json({ message: "description is required" });
       if (!level || !VALID_LEVELS.includes(level)) {
-        return res.status(400).json({ message: `level is required and must be one of: ${VALID_LEVELS.join(", ")}` });
+        return res
+          .status(400)
+          .json({
+            message: `level is required and must be one of: ${VALID_LEVELS.join(
+              ", "
+            )}`,
+          });
       }
       if (!date) return res.status(400).json({ message: "date is required" });
 
@@ -102,17 +124,26 @@ router.post(
 
       let student = null;
       if (studentId) {
-        student = await Student.findById(studentId).select("_id studentName rollNo");
+        student = await Student.findById(studentId).select(
+          "_id studentName rollNo"
+        );
       }
       if (!student && rollNo) {
-        student = await Student.findOne({ rollNo }).select("_id studentName rollNo");
+        student = await Student.findOne({ rollNo }).select(
+          "_id studentName rollNo"
+        );
       }
       if (!student) {
-        return res.status(404).json({ message: "Student not found (check studentId or rollNo)" });
+        return res
+          .status(404)
+          .json({ message: "Student not found (check studentId or rollNo)" });
       }
 
-      const finalRollNo = (student.rollNo && String(student.rollNo).trim()) || rollNo;
-      const finalStudentName = (student.studentName && String(student.studentName).trim()) || (studentName ? String(studentName).trim() : "");
+      const finalRollNo =
+        (student.rollNo && String(student.rollNo).trim()) || rollNo;
+      const finalStudentName =
+        (student.studentName && String(student.studentName).trim()) ||
+        (studentName ? String(studentName).trim() : "");
 
       const ach = new Achievement({
         studentId: student._id,
@@ -136,20 +167,24 @@ router.post(
       if (err instanceof multer.MulterError) {
         return res.status(400).json({ message: err.message });
       }
-      return res.status(500).json({ message: "Server error", error: err.message || err.toString() });
+      return res
+        .status(500)
+        .json({ message: "Server error", error: err.message || err.toString() });
     }
   }
 );
-
 
 /**
  * GET /api/achievements
  * Admin listing with optional pagination: ?page=1&limit=20
  */
-router.get("/", auth, roleCheck(["admin"]), async (req, res) => {
+router.get("/public", auth, roleCheck(["admin","Student","Staff"]), async (req, res) => {
   try {
     const page = Math.max(1, parseInt(req.query.page, 10) || 1);
-    const limit = Math.max(1, Math.min(100, parseInt(req.query.limit, 10) || 20));
+    const limit = Math.max(
+      1,
+      Math.min(100, parseInt(req.query.limit, 10) || 20)
+    );
     const skip = (page - 1) * limit;
 
     const [total, achievements] = await Promise.all([
@@ -205,5 +240,103 @@ router.get("/by-student/:studentId", auth, roleCheck(["admin", "Student", "Staff
     return res.status(500).json({ message: "Server error" });
   }
 });
+
+/**
+ * POST /api/achievements/:id/appreciate
+ * Toggle appreciation for the authenticated user (Student, Staff, admin)
+ *
+ * Important behavior:
+ * - If the user has already appreciated, we remove their appreciation (unlike).
+ * - If they haven't appreciated, we create an appreciation.
+ * - We only increment/decrement appreciationCount when a create/delete actually succeeded.
+ * - The create/delete and the counter update run inside a transaction (when possible),
+ *   and we use findOneAndUpdate(..., { new:true }) to return the updated Achievement.
+ */
+// routes/achievements.js  — replace the appreciate handler with this block
+router.post("/:id/appreciate", auth, roleCheck(["Student", "admin", "Staff"]), async (req, res) => {
+  const achievementId = req.params.id;
+  const userId = req.user && req.user.id;
+  if (!userId) return res.status(401).json({ message: "Unauthorized" });
+
+  const session = await mongoose.startSession();
+  try {
+    session.startTransaction();
+
+    // check existing appreciation within transaction
+    const existing = await Appreciation.findOne({ achievementId, studentId: userId }).session(session);
+
+    let appreciated;
+    if (existing) {
+      // delete the appreciation
+      await Appreciation.findOneAndDelete({ achievementId, studentId: userId }, { session });
+      appreciated = false;
+    } else {
+      // create appreciation; if duplicate key occurs it'll throw and go to catch block
+      await Appreciation.create([{ achievementId, studentId: userId }], { session });
+      appreciated = true;
+    }
+
+    // **authoritative count** inside transaction
+    const newCount = await Appreciation.countDocuments({ achievementId }).session(session);
+
+    // set the achievement's counter to authoritative value
+    await Achievement.findByIdAndUpdate(achievementId, { appreciationCount: newCount }, { session });
+
+    await session.commitTransaction();
+    session.endSession();
+
+    // Return the authoritative state to the client
+    return res.json({ appreciated, appreciationCount: newCount });
+  } catch (err) {
+    // abort + end session
+    try { await session.abortTransaction(); } catch (e) { console.error("abort error", e); }
+    session.endSession();
+
+    // If duplicate-key error occurred on create, it means another concurrent create succeeded:
+    if (err && err.code === 11000) {
+      try {
+        const newCount = await Appreciation.countDocuments({ achievementId });
+        return res.json({ appreciated: true, appreciationCount: newCount });
+      } catch (e) {
+        console.error("countDocuments after E11000 error:", e);
+      }
+    }
+
+    console.error("Error toggling appreciation:", err);
+    return res.status(500).json({ message: "Server error", error: err.message || String(err) });
+  }
+});
+
+
+router.get(
+  "/user-appreciations",
+  auth,
+  roleCheck(["Student", "admin", "Staff"]),
+  async (req, res) => {
+    try {
+      const userId = req.user && req.user.id;
+      if (!userId) return res.status(401).json({ message: "Unauthorized" });
+
+      const idsParam = String(req.query.ids || "").trim();
+      const ids = idsParam ? idsParam.split(",").map((s) => s.trim()) : [];
+
+      if (ids.length === 0) {
+        return res.json({ appreciatedIds: [] });
+      }
+
+      // Find appreciation docs for this user and the requested achievements
+      const rows = await Appreciation.find({
+        studentId: userId,
+        achievementId: { $in: ids },
+      }).select("achievementId").lean();
+
+      const appreciatedIds = rows.map((r) => String(r.achievementId));
+      return res.json({ appreciatedIds });
+    } catch (err) {
+      console.error("Error in user-appreciations:", err);
+      return res.status(500).json({ message: "Server error" });
+    }
+  }
+);
 
 module.exports = router;
