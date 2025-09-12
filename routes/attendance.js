@@ -508,5 +508,63 @@ router.post("/build-index", (req, res) => {
   });
 });
 
+/**
+ * Attendance report (date range / month)
+ */
+router.get("/report", async (req, res) => {
+  try {
+    const { startDate, endDate, block } = req.query;
+
+    if (!startDate || !endDate) {
+      return res.status(400).json({ message: "startDate and endDate are required" });
+    }
+
+    const start = new Date(startDate);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(endDate);
+    end.setHours(23, 59, 59, 999);
+
+    // fetch all records in range (fallback if stored as string)
+    let records = await Attendance.find(block ? { blockName: block } : {}).lean();
+
+    // normalize string dates → Date
+    records = records.filter((rec) => {
+      const d = new Date(rec.date);   // 👈 rec.date may be string or Date
+      return d >= start && d <= end;
+    });
+
+    // Build summary by student
+    const summary = {};
+    for (const rec of records) {
+      const id = rec.studentId.toString();
+      if (!summary[id]) {
+        summary[id] = {
+          studentId: rec.studentId,
+          studentName: rec.studentName,
+          rollNo: rec.rollNo,
+          roomNo: rec.roomNo,
+          blockName: rec.blockName,
+          present: 0,
+          absent: 0,
+          leave: 0,
+        };
+      }
+
+      if (rec.isApprovedLeave) {
+        summary[id].leave++;
+      } else if (rec.status === "Present") {
+        summary[id].present++;
+      } else if (rec.status === "Absent") {
+        summary[id].absent++;
+      }
+    }
+
+    res.json(Object.values(summary));
+  } catch (err) {
+    console.error("❌ Attendance report error:", err.message);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
 
 module.exports = router;
