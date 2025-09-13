@@ -51,7 +51,7 @@ async function startServer() {
     app.use('/api/leave', require('./routes/leave'));
     app.use('/api/mess', require('./routes/mess'));
     app.use('/api/establishment', require('./routes/establishment'));
-    app.use('/api/payment', require('./routes/payment'));
+    //app.use('/api/payment', require('./routes/payment'));
     app.use('/api/paymentWebhook', require('./routes/paymentWebhook'));
     app.use('/api/achievements', require('./routes/achievements'));
     app.use('/api/uploadChallan', require('./routes/uploadChallan'));
