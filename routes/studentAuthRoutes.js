@@ -9,21 +9,38 @@ const Attendance = require("../models/Attendance")
 const { auth,roleCheck } = require("../middleware/auth");
 
 // POST /api/student/login
-router.post("/login",async (req, res) => {
+router.post("/login", async (req, res) => {
   const { email, password } = req.body;
   console.log("req", req.body);
 
   try {
-    const student = await User.findOne({ email });
-    if (!student)
-      return res.status(401).json({ message: "Invalid email or password" });
+    if (!email || !password) {
+      return res.status(400).json({ message: "Missing credentials" });
+    }
 
-    const isMatch = await bcrypt.compare(password, student.password);
-    if (!isMatch)
+    // normalize incoming identifier:
+    const rawId = String(email).trim();           // whatever the user typed
+    const byEmail = rawId.toLowerCase();         // normalize email to lowercase
+    const byRoll = rawId.toUpperCase();          // normalize rollNo to uppercase
+
+    // Try to find user by either email (lowercase) or rollNo (uppercase)
+    const student = await User.findOne({
+      $or: [{ email: byEmail }, { rollNo: byRoll }],
+    });
+
+    if (!student) {
+      console.log("Login failed: no user found for", { byEmail, byRoll });
       return res.status(401).json({ message: "Invalid email or password" });
+    }
+
+    const isMatch = await bcrypt.compare(String(password).trim(), student.password);
+    if (!isMatch) {
+      console.log("Login failed: password mismatch for user", student._id);
+      return res.status(401).json({ message: "Invalid email or password" });
+    }
 
     const token = jwt.sign(
-      { id: student._id, role: "student" },
+      { id: student._id, role: student.role || "student" },
       process.env.JWT_SECRET,
       { expiresIn: "1d" }
     );
@@ -33,7 +50,7 @@ router.post("/login",async (req, res) => {
         id: student._id,
         name: student.name,
         email: student.email,
-        rollNo: student.rollNo, // 👈 Add this
+        rollNo: student.rollNo,
       },
       token,
     });
@@ -42,6 +59,7 @@ router.post("/login",async (req, res) => {
     res.status(500).json({ error: "Server error" });
   }
 });
+
 
 router.get('/roll/:rollNo', async (req, res) => {
     //console.log("Welcome")

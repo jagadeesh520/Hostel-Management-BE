@@ -47,29 +47,125 @@ router.post("/upload", auth, roleCheck(["admin"]), async (req, res) => {
       return res.status(400).json({ message: "No students to upload" });
     }
 
-    const mappedStudents = students.map((s) => ({
-      collegeName: s["College Name"],
-      studentName: s["Student Name"],
-      gender: s["Gender"],
-      rollNo: s["Roll No"],
-      year: s["Year"],
-      roomNo: s["Room No"],
-      blockName: s["Block Name"],
-      address: s["Address"] || "",
-      studentPhone: s["Student Phone"] || "",
-      parentPhone: s["Parent Phone"] || "",
+    // helpers (kept local so this handler is self-contained)
+    const normalizeDiet = (raw) => {
+      const s = String(raw || "").trim().toLowerCase();
+      if (s === "nv") return "non-veg";
+      if (/non[\s-]?veg/.test(s)) return "non-veg";
+      if (/(^|[^a-z])non($|[^a-z])/.test(s)) return "non-veg";
+      return "veg";
+    };
+    const normalizeRoll = (r) => String(r || "").trim().toUpperCase();
 
-      // NEW: diet type (accept either "Type" or "Diet" column)
-      type: normalizeDiet(s["Type"] ?? s["Diet"] ?? "veg"),
+    // map + normalize + attach source row index for better reporting
+    const mapped = students.map((s, idx) => ({
+      __row: idx + 1,
+      collegeName: (s["College Name"] ?? s.collegeName ?? "").trim(),
+      studentName: (s["Student Name"] ?? s.studentName ?? "").trim(),
+      gender: (s["Gender"] ?? s.gender ?? "").trim(),
+      rollNo: normalizeRoll(s["Roll No"] ?? s.rollNo ?? ""),
+      year: (s["Year"] ?? s.year ?? "").trim(),
+      roomNo: (s["Room No"] ?? s.roomNo ?? "").trim(),
+      blockName: (s["Block Name"] ?? s.blockName ?? "").trim(),
+      address: (s["Address"] ?? s.address ?? "").trim(),
+      studentPhone: (s["Student Phone"] ?? s.studentPhone ?? "").trim(),
+      parentPhone: (s["Parent Phone"] ?? s.parentPhone ?? "").trim(),
+      type: normalizeDiet(s["Type"] ?? s["Diet"] ?? s.type ?? "veg"),
     }));
 
-    await Student.insertMany(mappedStudents, { ordered: false });
-    return res.status(200).json({ message: "Students uploaded successfully", count: mappedStudents.length });
+    // 1) Validation: required fields
+    const invalid = mapped.filter(
+      (r) => !r.rollNo || !r.studentName || !r.collegeName || !["veg", "non-veg"].includes(r.type)
+    );
+    if (invalid.length > 0) {
+      return res.status(400).json({
+        message: "Some rows are missing required fields or have invalid values",
+        invalidRows: invalid.map((r) => ({ row: r.__row, rollNo: r.rollNo, studentName: r.studentName, collegeName: r.collegeName, type: r.type })),
+      });
+    }
+
+    // 2) Deduplicate rows within upload (keep first occurrence)
+    const seen = new Set();
+    const unique = [];
+    const duplicates = [];
+    for (const row of mapped) {
+      if (seen.has(row.rollNo)) {
+        duplicates.push({ row: row.__row, rollNo: row.rollNo });
+        continue;
+      }
+      seen.add(row.rollNo);
+      unique.push(row);
+    }
+
+    // 3) Build bulk ops: upsert per rollNo
+    // Strategy:
+    //  - $setOnInsert: fields set only when inserting (protects against overwriting original name/college)
+    //  - $set: fields we allow to update on re-upload (roomNo, year, blockName, phones, address, gender, type)
+    const bulkOps = unique.map((m) => ({
+      updateOne: {
+        filter: { rollNo: m.rollNo },
+        update: {
+          $setOnInsert: {
+            collegeName: m.collegeName,
+            studentName: m.studentName,
+            rollNo: m.rollNo,
+            // keep face fields empty on bulk upload; upload face images separately
+            isCompleted: false,
+          },
+          $set: {
+            gender: m.gender || undefined,
+            year: m.year || undefined,
+            roomNo: m.roomNo || undefined,
+            blockName: m.blockName || undefined,
+            address: m.address || undefined,
+            studentPhone: m.studentPhone || undefined,
+            parentPhone: m.parentPhone || undefined,
+            type: m.type, // we allow changing diet if admin corrected it
+            updatedAt: new Date(),
+          },
+        },
+        upsert: true,
+      },
+    }));
+
+    // If there's nothing to write (shouldn't happen), return early
+    if (bulkOps.length === 0) {
+      return res.status(200).json({
+        message: "No unique rows to process",
+        duplicates,
+      });
+    }
+
+    const result = await Student.bulkWrite(bulkOps, { ordered: false });
+
+    // Build friendly summary
+    const summary = {
+      totalRows: students.length,
+      uniqueRows: unique.length,
+      duplicateRowsInUpload: duplicates.length,
+      inserted: result.upsertedCount || 0,
+      matched: result.matchedCount || 0,
+      modified: result.modifiedCount || 0,
+      // upsertedIds: result.upsertedIds ?? null, // optionally return IDs
+    };
+
+    return res.status(200).json({
+      message: "Upload processed",
+      summary,
+      duplicates,
+    });
   } catch (err) {
     console.error("Upload Error:", err);
-    return res.status(500).json({ message: "Internal server error" });
+
+    // handle duplicate key error more explicitly
+    if (err && err.code === 11000) {
+      return res.status(409).json({ message: "Duplicate key error (existing rollNo conflict)", error: err.message });
+    }
+
+    return res.status(500).json({ message: "Internal server error", error: err.message });
   }
 });
+
 
 /** =========================================
  *  PATCH student by Mongo _id
