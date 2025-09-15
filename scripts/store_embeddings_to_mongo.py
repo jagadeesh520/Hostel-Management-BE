@@ -5,16 +5,16 @@ import pymongo
 from dotenv import load_dotenv
 from insightface.app import FaceAnalysis
 
-# === Load environment variables from .env in scripts/ ===
+# === Load environment variables from .env in project root ===
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-ENV_PATH = os.path.join(SCRIPT_DIR, ".env")
+PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
+ENV_PATH = os.path.join(PROJECT_ROOT, ".env")
 load_dotenv(dotenv_path=ENV_PATH)
 
 # === Config: Faces Directory ===
 if os.name == "nt":  # Windows (local dev)
     FACES_DIR = r"C:/Project/College_Management/hostel-app-be/uploads/faces"
 else:  # Linux (AWS)
-    PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
     FACES_DIR = os.path.join(PROJECT_ROOT, "uploads", "faces")
 
 print(f"📂 Using faces directory: {FACES_DIR}")
@@ -26,13 +26,19 @@ mongo_uri = os.getenv("MONGO_URI")
 if not mongo_uri:
     raise ValueError("❌ MONGO_URI not found in .env file")
 
-client = pymongo.MongoClient(mongo_uri)
-db = client["hostelManagementDB"]
-students_collection = db["students"]
+try:
+    client = pymongo.MongoClient(mongo_uri)
+    db = client["hostelManagementDB"]
+    students_collection = db["students"]
+except Exception as e:
+    raise ConnectionError(f"❌ Failed to connect to MongoDB: {e}")
 
 # === Setup InsightFace (CPU or GPU) ===
-app = FaceAnalysis(name="buffalo_l", providers=["CPUExecutionProvider"])
-app.prepare(ctx_id=0)
+try:
+    app = FaceAnalysis(name="buffalo_l", providers=["CPUExecutionProvider"])
+    app.prepare(ctx_id=0)
+except Exception as e:
+    raise RuntimeError(f"❌ Failed to initialize InsightFace: {e}")
 
 # === Process each student folder ===
 for rollNo in os.listdir(FACES_DIR):

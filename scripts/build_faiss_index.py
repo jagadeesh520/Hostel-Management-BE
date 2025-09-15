@@ -6,9 +6,10 @@ import pickle
 from tqdm import tqdm
 from dotenv import load_dotenv
 
-# === Load environment variables from .env in scripts/ ===
+# === Load environment variables from .env in project root ===
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-ENV_PATH = os.path.join(SCRIPT_DIR, ".env")
+PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
+ENV_PATH = os.path.join(PROJECT_ROOT, ".env")
 load_dotenv(dotenv_path=ENV_PATH)
 
 # === Constants ===
@@ -25,9 +26,12 @@ mongo_uri = os.getenv("MONGO_URI")
 if not mongo_uri:
     raise ValueError("❌ MONGO_URI not found in .env file")
 
-client = pymongo.MongoClient(mongo_uri)
-db = client["hostelManagementDB"]
-students_collection = db["students"]
+try:
+    client = pymongo.MongoClient(mongo_uri)
+    db = client["hostelManagementDB"]
+    students_collection = db["students"]
+except Exception as e:
+    raise ConnectionError(f"❌ Failed to connect to MongoDB: {e}")
 
 # === Load Embeddings from Mongo ===
 all_embeddings = []
@@ -35,8 +39,11 @@ rollno_list = []
 no_image_students = []
 invalid_shape_students = []
 
-students = list(students_collection.find())
-print(f"[ℹ️] Total students fetched: {len(students)}")
+try:
+    students = list(students_collection.find())
+    print(f"[ℹ️] Total students fetched: {len(students)}")
+except Exception as e:
+    raise RuntimeError(f"❌ Failed to fetch students from MongoDB: {e}")
 
 for student in tqdm(students, desc="Processing Students"):
     roll_no = student.get("rollNo")
@@ -67,17 +74,23 @@ if not all_embeddings:
     print(f"[⚠️] Students with invalid embedding shape: {invalid_shape_students}")
     exit()
 
-index = faiss.IndexFlatL2(EMBEDDING_DIM)
-index.add(np.array(all_embeddings))
-faiss.write_index(index, INDEX_PATH)
+try:
+    index = faiss.IndexFlatL2(EMBEDDING_DIM)
+    index.add(np.array(all_embeddings))
+    faiss.write_index(index, INDEX_PATH)
+except Exception as e:
+    raise RuntimeError(f"❌ Failed to build or save FAISS index: {e}")
 
 # === Save Roll Numbers ===
-with open(ROLLNOS_PKL_PATH, "wb") as f:
-    pickle.dump(rollno_list, f)
+try:
+    with open(ROLLNOS_PKL_PATH, "wb") as f:
+        pickle.dump(rollno_list, f)
 
-with open(ROLLNOS_TXT_PATH, "w") as f:
-    for roll in rollno_list:
-        f.write(f"{roll}\n")
+    with open(ROLLNOS_TXT_PATH, "w") as f:
+        for roll in rollno_list:
+            f.write(f"{roll}\n")
+except Exception as e:
+    raise IOError(f"❌ Failed to save roll numbers: {e}")
 
 # === Summary ===
 print(f"[✔] FAISS index built with {len(rollno_list)} embeddings.")
