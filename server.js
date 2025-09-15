@@ -36,6 +36,7 @@ async function startServer() {
     }
 
     app.use("/api/hostels", require("./routes/hostelRoutes"));
+    app.use("/api/hostelOfficerLogin", require("./routes/hostelOfficerLogin"));
     app.use("/api/wardens", require("./routes/wardenRoutes"));
     app.use("/api/students", require("./routes/studentRoutes"));
     app.use("/api/attendance", require("./routes/attendance"));
