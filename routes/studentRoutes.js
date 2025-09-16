@@ -11,9 +11,11 @@ const User = require("../models/User");
 
 /** -------- helpers -------- */
 const normalizeDiet = (raw) => {
-  const s = String(raw || "").trim().toLowerCase();
+  const s = String(raw || "")
+    .trim()
+    .toLowerCase();
   if (s === "nv") return "non-veg";
-  if (/non[\s-]?veg/.test(s)) return "non-veg";          // "non veg", "non-veg", "nonveg"
+  if (/non[\s-]?veg/.test(s)) return "non-veg"; // "non veg", "non-veg", "nonveg"
   if (/(^|[^a-z])non($|[^a-z])/.test(s)) return "non-veg"; // standalone "non"
   return "veg";
 };
@@ -49,38 +51,53 @@ router.post("/upload", auth, roleCheck(["admin"]), async (req, res) => {
 
     // helpers (kept local so this handler is self-contained)
     const normalizeDiet = (raw) => {
-      const s = String(raw || "").trim().toLowerCase();
+      const s = String(raw || "")
+        .trim()
+        .toLowerCase();
       if (s === "nv") return "non-veg";
       if (/non[\s-]?veg/.test(s)) return "non-veg";
       if (/(^|[^a-z])non($|[^a-z])/.test(s)) return "non-veg";
       return "veg";
     };
-    const normalizeRoll = (r) => String(r || "").trim().toUpperCase();
+    const normalizeRoll = (r) =>
+      String(r || "")
+        .trim()
+        .toUpperCase();
 
     // map + normalize + attach source row index for better reporting
     const mapped = students.map((s, idx) => ({
       __row: idx + 1,
-      collegeName: (s["College Name"] ?? s.collegeName ?? "").trim(),
-      studentName: (s["Student Name"] ?? s.studentName ?? "").trim(),
-      gender: (s["Gender"] ?? s.gender ?? "").trim(),
+      collegeName: String(s["College Name"] ?? s.collegeName ?? "").trim(),
+      studentName: String(s["Student Name"] ?? s.studentName ?? "").trim(),
+      gender: String(s["Gender"] ?? s.gender ?? "").trim(),
       rollNo: normalizeRoll(s["Roll No"] ?? s.rollNo ?? ""),
-      year: (s["Year"] ?? s.year ?? "").trim(),
-      roomNo: (s["Room No"] ?? s.roomNo ?? "").trim(),
-      blockName: (s["Block Name"] ?? s.blockName ?? "").trim(),
-      address: (s["Address"] ?? s.address ?? "").trim(),
-      studentPhone: (s["Student Phone"] ?? s.studentPhone ?? "").trim(),
-      parentPhone: (s["Parent Phone"] ?? s.parentPhone ?? "").trim(),
+      year: String(s["Year"] ?? s.year ?? "").trim(),
+      roomNo: String(s["Room No"] ?? s.roomNo ?? "").trim(),
+      blockName: String(s["Block Name"] ?? s.blockName ?? "").trim(),
+      address: String(s["Address"] ?? s.address ?? "").trim(),
+      studentPhone: String(s["Student Phone"] ?? s.studentPhone ?? "").trim(),
+      parentPhone: String(s["Parent Phone"] ?? s.parentPhone ?? "").trim(),
       type: normalizeDiet(s["Type"] ?? s["Diet"] ?? s.type ?? "veg"),
     }));
 
     // 1) Validation: required fields
     const invalid = mapped.filter(
-      (r) => !r.rollNo || !r.studentName || !r.collegeName || !["veg", "non-veg"].includes(r.type)
+      (r) =>
+        !r.rollNo ||
+        !r.studentName ||
+        !r.collegeName ||
+        !["veg", "non-veg"].includes(r.type)
     );
     if (invalid.length > 0) {
       return res.status(400).json({
         message: "Some rows are missing required fields or have invalid values",
-        invalidRows: invalid.map((r) => ({ row: r.__row, rollNo: r.rollNo, studentName: r.studentName, collegeName: r.collegeName, type: r.type })),
+        invalidRows: invalid.map((r) => ({
+          row: r.__row,
+          rollNo: r.rollNo,
+          studentName: r.studentName,
+          collegeName: r.collegeName,
+          type: r.type,
+        })),
       });
     }
 
@@ -159,13 +176,19 @@ router.post("/upload", auth, roleCheck(["admin"]), async (req, res) => {
 
     // handle duplicate key error more explicitly
     if (err && err.code === 11000) {
-      return res.status(409).json({ message: "Duplicate key error (existing rollNo conflict)", error: err.message });
+      return res
+        .status(409)
+        .json({
+          message: "Duplicate key error (existing rollNo conflict)",
+          error: err.message,
+        });
     }
 
-    return res.status(500).json({ message: "Internal server error", error: err.message });
+    return res
+      .status(500)
+      .json({ message: "Internal server error", error: err.message });
   }
 });
-
 
 /** =========================================
  *  PATCH student by Mongo _id
@@ -187,7 +210,8 @@ router.patch(
         roomNo: req.body.roomNo,
         year: req.body.year,
         gender: req.body.gender,
-        isCompleted: req.body.isCompleted === "true" || req.body.isCompleted === true,
+        isCompleted:
+          req.body.isCompleted === "true" || req.body.isCompleted === true,
       };
 
       if (typeof req.body.type !== "undefined") {
@@ -294,39 +318,46 @@ router.get("/:rollNo", async (req, res) => {
 /** =========================================
  *  CSV bulk upload -> Users collection (unchanged)
  *  =======================================*/
-router.post("/bulk-upload-students", upload.single("file"), async (req, res) => {
-  if (!req.file) return res.status(400).json({ message: "CSV file is required" });
+router.post(
+  "/bulk-upload-students",
+  upload.single("file"),
+  async (req, res) => {
+    if (!req.file)
+      return res.status(400).json({ message: "CSV file is required" });
 
-  const fileRows = [];
+    const fileRows = [];
 
-  fs.createReadStream(req.file.path)
-    .pipe(csv())
-    .on("data", (row) => fileRows.push(row))
-    .on("end", async () => {
-      try {
-        const users = await Promise.all(
-          fileRows.map(async (row) => ({
-            name: row.name,
-            email: row.email,
-            rollNo: row.rollNo,
-            password: await bcrypt.hash(row.password, 10),
-            role: "Student",
-          }))
-        );
+    fs.createReadStream(req.file.path)
+      .pipe(csv())
+      .on("data", (row) => fileRows.push(row))
+      .on("end", async () => {
+        try {
+          const users = await Promise.all(
+            fileRows.map(async (row) => ({
+              name: row.name,
+              email: row.email,
+              rollNo: row.rollNo,
+              password: await bcrypt.hash(row.password, 10),
+              role: "Student",
+            }))
+          );
 
-        await User.insertMany(users);
-        fs.unlinkSync(req.file.path);
+          await User.insertMany(users);
+          fs.unlinkSync(req.file.path);
 
-        res.status(200).json({ message: "Bulk upload successful", count: users.length });
-      } catch (err) {
-        console.error("Bulk upload error:", err);
-        res.status(500).json({ error: err.message });
-      }
-    })
-    .on("error", (err) => {
-      console.error("CSV parse error:", err);
-      res.status(500).json({ error: "Failed to parse CSV" });
-    });
-});
+          res
+            .status(200)
+            .json({ message: "Bulk upload successful", count: users.length });
+        } catch (err) {
+          console.error("Bulk upload error:", err);
+          res.status(500).json({ error: err.message });
+        }
+      })
+      .on("error", (err) => {
+        console.error("CSV parse error:", err);
+        res.status(500).json({ error: "Failed to parse CSV" });
+      });
+  }
+);
 
 module.exports = router;
