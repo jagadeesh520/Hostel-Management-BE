@@ -1,4 +1,4 @@
-// ./routes/hostelOfficerLogin.js
+// ./routes/hostelOfficerLogin.js (patched handler)
 const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
@@ -18,10 +18,28 @@ router.post('/login', async (req, res) => {
 
     if (!process.env.JWT_SECRET) return res.status(500).json({ message: 'Server config error' });
 
-    const payload = { sub: user._id.toString(), email: user.email, role: user.role || 'HostelOfficer' };
-    const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: process.env.JWT_EXPIRES_IN || '8h' });
+    // Normalize role and include assignedBlock if available
+    const normalizedRole = (user.role || 'hostelofficer').toString();
+    const assignedBlock = user.assignedBlock || user.block || null;
 
-    return res.json({ token, user: { id: user._id, name: user.name, email: user.email, role: user.role } });
+    // Put a clear "id" claim (and keep email, role, assignedBlock)
+    const payload = {
+      id: user._id.toString(),
+      email: user.email,
+      role: normalizedRole,
+      assignedBlock,
+    };
+
+    const token = jwt.sign(payload, process.env.JWT_SECRET, {
+      expiresIn: process.env.JWT_EXPIRES_IN || '8h',
+    });
+
+    // return both token and authToken (backwards compatible)
+    return res.json({
+      token,
+      authToken: token,
+      user: { id: user._id, name: user.name, email: user.email, role: normalizedRole, assignedBlock },
+    });
   } catch (err) {
     console.error('hostelOfficerLogin error:', err);
     return res.status(500).json({ message: 'Server error' });

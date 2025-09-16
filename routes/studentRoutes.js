@@ -23,7 +23,7 @@ const normalizeDiet = (raw) => {
 /** =========================================
  *  GET all students
  *  =======================================*/
-router.get("/", auth, roleCheck(["admin"]), async (req, res) => {
+router.get("/", auth, roleCheck(["admin","hostelofficer"]), async (req, res) => {
   try {
     const students = await Student.find();
     return res.json(students);
@@ -41,7 +41,7 @@ router.get("/", auth, roleCheck(["admin"]), async (req, res) => {
  *     "Room No","Block Name","Address","Student Phone","Parent Phone",
  *     "Type" (or "Diet") -> veg/non-veg
  *  =======================================*/
-router.post("/upload", auth, roleCheck(["admin"]), async (req, res) => {
+router.post("/upload", auth, roleCheck(["admin","hostelofficer"]), async (req, res) => {
   try {
     const { students } = req.body;
 
@@ -200,7 +200,7 @@ router.post("/upload", auth, roleCheck(["admin"]), async (req, res) => {
 router.patch(
   "/:id",
   auth,
-  roleCheck(["admin"]),
+  roleCheck(["admin","hostelofficer"]),
   uploadFaceImages.array("faceImages", 5),
   async (req, res) => {
     try {
@@ -248,7 +248,7 @@ router.patch(
 router.get(
   "/filter",
   auth,
-  roleCheck(["admin", "Warden"]),
+  roleCheck(["admin", "Warden","hostelofficer"]),
   async (req, res) => {
     const { block } = req.query;
     try {

@@ -19,7 +19,7 @@ async function startServer() {
 
     app.use(cors({
       origin: "*",        // allow all origins for now (for testing)
-      methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+      methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
       allowedHeaders: ["Content-Type", "Authorization"],
     }));
 
