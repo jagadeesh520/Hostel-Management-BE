@@ -318,46 +318,63 @@ router.get("/:rollNo", async (req, res) => {
 /** =========================================
  *  CSV bulk upload -> Users collection (unchanged)
  *  =======================================*/
-router.post(
-  "/bulk-upload-students",
-  upload.single("file"),
-  async (req, res) => {
-    if (!req.file)
-      return res.status(400).json({ message: "CSV file is required" });
-
-    const fileRows = [];
-
-    fs.createReadStream(req.file.path)
-      .pipe(csv())
-      .on("data", (row) => fileRows.push(row))
-      .on("end", async () => {
-        try {
-          const users = await Promise.all(
-            fileRows.map(async (row) => ({
-              name: row.name,
-              email: row.email,
-              rollNo: row.rollNo,
-              password: await bcrypt.hash(row.password, 10),
-              role: "Student",
-            }))
-          );
-
-          await User.insertMany(users);
-          fs.unlinkSync(req.file.path);
-
-          res
-            .status(200)
-            .json({ message: "Bulk upload successful", count: users.length });
-        } catch (err) {
-          console.error("Bulk upload error:", err);
-          res.status(500).json({ error: err.message });
-        }
-      })
-      .on("error", (err) => {
-        console.error("CSV parse error:", err);
-        res.status(500).json({ error: "Failed to parse CSV" });
-      });
+router.post("/bulk-upload-students", upload.single("file"), async (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ message: "CSV file is required" });
   }
-);
+
+  const fileRows = [];
+
+  fs.createReadStream(req.file.path)
+    .pipe(csv())
+    .on("data", (row) => fileRows.push(row))
+    .on("end", async () => {
+      try {
+        // Extract incoming emails
+        const incomingEmails = fileRows.map(row => row.email);
+
+        // Find existing users
+        const existingUsers = await User.find({ email: { $in: incomingEmails } }).select("email");
+        const existingEmailSet = new Set(existingUsers.map(u => u.email));
+
+        // Filter out duplicates
+        const filteredRows = fileRows.filter(row => !existingEmailSet.has(row.email));
+
+        // Prepare user objects
+        const users = await Promise.all(
+          filteredRows.map(async (row) => ({
+            name: row.name,
+            email: row.email,
+            rollNo: row.rollNo,
+            password: await bcrypt.hash(row.password, 10),
+            role: "Student",
+          }))
+        );
+
+        // Insert new users
+        await User.insertMany(users);
+
+        // Cleanup temp file
+        fs.unlinkSync(req.file.path);
+
+        // Respond with summary
+        res.status(200).json({
+          message: "Bulk upload completed",
+          inserted: users.length,
+          skipped: fileRows.length - users.length,
+        });
+      } catch (err) {
+        console.error("Bulk upload error:", err);
+        fs.unlinkSync(req.file.path); // Ensure cleanup on error
+        res.status(500).json({ error: err.message });
+      }
+    })
+    .on("error", (err) => {
+      console.error("CSV parse error:", err);
+      fs.unlinkSync(req.file.path); // Cleanup on parse error
+      res.status(500).json({ error: "Failed to parse CSV" });
+    });
+});
+
 
 module.exports = router;
