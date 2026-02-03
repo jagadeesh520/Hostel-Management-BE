@@ -6,14 +6,36 @@ const bcrypt = require("bcryptjs"); // ✅ Make sure this is installed
 const User = require("../models/User"); // ✅ Make sure path is correct
 
 router.post("/login", async (req, res) => {
-  const { email, password } = req.body;
+  const { email, username, password } = req.body;
+  const loginIdentifier = email || username;
 
   try {
-    const user = await User.findOne({ email });
-    if (!user) return res.status(401).json({ message: "Invalid credentials" });
+    // Find user by email or username
+    const user = await User.findOne({ 
+      $or: [
+        { email: loginIdentifier },
+        { username: loginIdentifier }
+      ]
+    });
+    
+    if (!user) {
+      console.log(`❌ User not found: ${loginIdentifier}`);
+      return res.status(401).json({ message: "Invalid credentials" });
+    }
 
-    const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) return res.status(401).json({ message: "Invalid credentials" });
+    // Check password - handle both hashed and plaintext for backwards compatibility
+    let isMatch = false;
+    try {
+      isMatch = await bcrypt.compare(password, user.password);
+    } catch (err) {
+      // Fallback: check plaintext password
+      isMatch = password === user.password;
+    }
+
+    if (!isMatch) {
+      console.log(`❌ Invalid password for user: ${loginIdentifier}`);
+      return res.status(401).json({ message: "Invalid credentials" });
+    }
 
     // Create JWT
     const token = jwt.sign(
@@ -22,6 +44,7 @@ router.post("/login", async (req, res) => {
       { expiresIn: "1d" }
     );
 
+    console.log(`✅ Login successful for user: ${loginIdentifier}, role: ${user.role}`);
     res.json({
       token,
       user: {
