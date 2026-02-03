@@ -20,6 +20,11 @@ const MenuSchema = new Schema(
     date: { type: String, required: true }, // 'YYYY-MM-DD' (IST)
     items: { type: [MenuItemSchema], default: [] },
     blockName: { type: String },
+    mealType: {
+      type: String,
+      enum: ["breakfast", "lunch", "dinner", "snacks"],
+      default: "lunch",
+    },
     createdBy: { type: Schema.Types.ObjectId, ref: "Warden" },
   },
   { timestamps: true }

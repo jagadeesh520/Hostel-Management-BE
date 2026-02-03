@@ -15,7 +15,9 @@ async function startServer() {
     console.log("✅ MongoDB connected");
 
     const app = express();
-    app.use(express.json());
+    // Increase body size limits for file uploads (500MB total, 100MB per file)
+    app.use(express.json({ limit: '500mb' }));
+    app.use(express.urlencoded({ extended: true, limit: '500mb' }));
 
     app.use(cors({
       origin: "*",        // allow all origins for now (for testing)
@@ -41,6 +43,7 @@ async function startServer() {
     app.use("/api/students", require("./routes/studentRoutes"));
     app.use("/api/attendance", require("./routes/attendance"));
     app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+    app.use('/tv-display', express.static(path.join(__dirname, 'public/tv-display')));
     app.use("/api/studentAuth", require("./routes/studentAuthRoutes"));
     app.use("/api/timesheetRoutes", require("./routes/timesheetRoutes"));
     app.use("/api/issueTicket", require("./routes/issueTicket"));
@@ -61,6 +64,9 @@ async function startServer() {
     app.use('/api/dues', require('./routes/dues'));
     app.use('/api/challanaPayments', require('./routes/challanaPayments'));
     app.use("/api/billing", require("./routes/billing"));
+    app.use("/api/tv-content", require("./routes/tvContent"));
+    app.use("/api/tv-analytics", require("./routes/tvAnalytics"));
+    app.use("/api/tv-display-config", require("./routes/tvDisplayConfig"));
 
     // Health route
     app.get('/', (req, res) => {

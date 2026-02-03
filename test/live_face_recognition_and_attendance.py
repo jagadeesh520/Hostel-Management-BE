@@ -46,8 +46,7 @@ def initialize_attendance(db, today):
     for student in students_collection.find():
         attendance_collection.insert_one({
             "studentId": student["_id"],
-            "studentName": student.get(NAME_FIELD, "Unknown"),
-
+            "studentName": student[NAME_FIELD],
             "roomNo": student[ROOM_FIELD],
             "rollNo": student[ROLLNO_FIELD],
             "blockName": student[BLOCK_FIELD],
@@ -80,11 +79,11 @@ def main():
         print("[💥] FAISS index and rollnos mismatch.")
         exit(1)
 
-    client = pymongo.MongoClient("mongodb+srv://Jagadeesh:Jagadeesh2025@cluster0.mgutntl.mongodb.net/hostelManagementDB?retryWrites=true&w=majority")
+    client = pymongo.MongoClient("mongodb+srv://Jagadeesh:qWUsu0HL1ic6OA5f@cluster0.mgutntl.mongodb.net/hostelManagementDB?retryWrites=true&w=majority")
     db = client["hostelManagementDB"]
 
     print("[🧠] Loading InsightFace model...")
-    model = insightface.app.FaceAnalysis(name='buffalo_l', providers=['CPUExecutionProvider'])
+    model = insightface.app.FaceAnalysis(name='antelopev2', providers=['CPUExecutionProvider'])
     model.prepare(ctx_id=0)
     print("[✅] Model loaded.")
 
@@ -124,7 +123,6 @@ def main():
 
         # ✅ Correct method for your version
         tracks = tracker.update_tracks(detection_boxes, embedding_list, frame)
-
 
         for track in tracks:
             if not track.is_confirmed():

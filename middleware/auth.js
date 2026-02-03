@@ -42,17 +42,25 @@ const auth = (req, res, next) => {
 
 const roleCheck = (roles) => (req, res, next) => {
   if (!req.user || !req.user.role) {
+    console.log("❌ roleCheck failed: no user or role in request");
     return res.status(403).json({ message: "Access denied: no role in token" });
   }
-console.log("👉 req.user from token:", req.user);
+  
+  console.log("👉 req.user from token:", req.user);
+  console.log("👉 Required roles:", roles);
 
   const userRole = req.user.role.toLowerCase();
   const allowed = roles.map(r => r.toLowerCase());
 
+  console.log("👉 User role (lowercase):", userRole);
+  console.log("👉 Allowed roles (lowercase):", allowed);
+
   if (!allowed.includes(userRole)) {
-    return res.status(403).json({ message: "Access denied: insufficient role" });
+    console.log("❌ roleCheck failed: role not allowed");
+    return res.status(403).json({ message: `Access denied: insufficient role. Required: ${allowed.join(', ')}, Got: ${userRole}` });
   }
 
+  console.log("✅ roleCheck passed");
   next();
 };
 

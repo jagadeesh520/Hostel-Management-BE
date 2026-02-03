@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart TV Display - Hostel Management</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- Loading Screen -->
+    <div id="loading-screen" class="loading-screen">
+        <div class="spinner"></div>
+        <p>Loading content...</p>
+    </div>
+
+    <!-- Error Screen -->
+    <div id="error-screen" class="error-screen" style="display: none;">
+        <div class="error-content">
+            <h2>⚠️ Connection Error</h2>
+            <p id="error-message">Unable to load content. Retrying...</p>
+        </div>
+    </div>
+
+    <!-- Main Display Container -->
+    <div id="main-display" style="display: none;">
+        <!-- Header with Clock and Date -->
+        <header class="tv-header">
+            <div class="header-center">
+                <div class="logo-name-row">
+                    <img src="/tv-display/assets/images/logo.png" alt="JNTUCEP Logo" class="logo" onerror="this.style.display='none'">
+                    <h1 class="college-name">JNTUACEP</h1>
+                </div>
+                <div class="college-info">
+                    <p class="college-full-name">Jawaharlal Nehru Technological University Anathapur, (Autonomous), Puliventula.</p>
+                    <span class="college-tagline">Powered by Smart & Advanced Digital Display Technology</span>
+                </div>
+            </div>
+            <div class="header-right">
+                <div class="clock" id="clock">00:00:00</div>
+                <div class="date" id="date">Monday, January 1, 2025</div>
+            </div>
+        </header>
+
+        <!-- Content Display Area -->
+        <div class="content-area">
+            <!-- Notification Section -->
+            <section id="notification-section" class="content-section">
+                <div class="notification-container">
+                    <div id="notification-icon" class="notification-icon">🔔</div>
+                    <div class="notification-content">
+                        <div id="notification-type" class="notification-type">ANNOUNCEMENT</div>
+                        <div id="notification-title" class="notification-title">Notification Title</div>
+                        <div id="notification-description" class="notification-description"></div>
+                    </div>
+                    <div id="notification-image-container" class="notification-image-container" style="display: none;">
+                        <img id="notification-image" src="" alt="Notification" class="notification-image">
+                    </div>
+                </div>
+            </section>
+
+            <!-- Timetable Section -->
+            <section id="timetable-section" class="content-section">
+                <div class="content-title" id="timetable-title"></div>
+                <div class="timetable-container">
+                    <img id="timetable-image" src="" alt="Timetable" class="timetable-image">
+                </div>
+            </section>
+
+            <!-- Food Images Section -->
+            <section id="food-images-section" class="content-section">
+                <div class="content-title" id="food-images-title"></div>
+                <div class="carousel-container">
+                    <div id="food-carousel" class="food-carousel"></div>
+                </div>
+            </section>
+
+            <!-- Video Section -->
+            <section id="video-section" class="content-section">
+                <div class="content-title" id="video-title"></div>
+                <div class="video-container">
+                    <video id="video-player" class="video-player" controls autoplay muted></video>
+                </div>
+            </section>
+        </div>
+
+        <!-- Footer with Scrolling Announcements -->
+        <footer class="tv-footer">
+            <div class="marquee">
+                <span id="announcements">Welcome to JNTUACEP Smart Hostel Display System</span>
+            </div>
+        </footer>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
+

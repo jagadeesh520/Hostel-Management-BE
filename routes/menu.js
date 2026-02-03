@@ -4,6 +4,13 @@ const path = require("path");
 const fs = require("fs");
 const multer = require("multer");
 const Menu = require("../models/Menu");
+const DEBUG_LOG_PATH = path.join(__dirname, "../../.cursor/debug.log");
+const logDebug = (location, message, data, hypothesisId) => {
+  try {
+    const logEntry = JSON.stringify({location, message, data, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId}) + '\n';
+    fs.appendFileSync(DEBUG_LOG_PATH, logEntry, 'utf8');
+  } catch (e) {}
+};
 
 const router = express.Router();
 
@@ -214,6 +221,53 @@ router.post("/removeItem", async (req, res) => {
   } catch (err) {
     console.error("POST /api/menu/removeItem error:", err);
     return res.status(500).json({ message: "Server error" });
+  }
+});
+
+/**
+ * GET /api/menu/tv-display
+ * Get structured menu for TV display (grouped by meal type)
+ */
+router.get("/tv-display", async (req, res) => {
+  try {
+    const { date, blockName } = req.query;
+    const queryDate = date || todayIST();
+
+    const query = { date: queryDate };
+    if (blockName) query.blockName = blockName;
+
+    // Fetch all menus for the date
+    const menus = await Menu.find(query).lean();
+
+    // Group by mealType
+    const grouped = {
+      date: queryDate,
+      breakfast: { items: [] },
+      lunch: { items: [] },
+      dinner: { items: [] },
+      snacks: { items: [] },
+    };
+
+    menus.forEach((menu, index) => {
+      // #region agent log
+      logDebug('menu.js:244', 'H1: Processing menu item', {menuIndex:index,hasMealType:!!menu.mealType,hasItems:!!menu.items,itemsIsArray:Array.isArray(menu.items),itemsLength:menu.items?.length}, 'H1');
+      // #endregion
+      
+      const mealType = menu.mealType || "lunch";
+      if (grouped[mealType]) {
+        // Ensure menu.items is an array before spreading
+        const items = Array.isArray(menu.items) ? menu.items : [];
+        grouped[mealType].items.push(...items);
+      }
+    });
+
+    res.json(grouped);
+  } catch (err) {
+    // #region agent log
+    logDebug('menu.js:252', 'H1: tv-display endpoint error', {errorMessage:err.message,errorStack:err.stack}, 'H1');
+    // #endregion
+    console.error("GET /api/menu/tv-display error:", err);
+    res.status(500).json({ message: "Server error" });
   }
 });
 
